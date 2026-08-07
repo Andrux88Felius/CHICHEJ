@@ -1,25 +1,41 @@
 import 'package:flutter/material.dart';
+
 import '../models/product_model.dart';
-import '../screens/cart_item.dart'; // Importa el nuevo modelo
+import '../screens/cart_item.dart';
 
 class CartProvider extends ChangeNotifier {
-  List<CartItem> carrito = [];
+  final List<CartItem> carrito = [];
 
-  int agregar(Product producto) {
-    int index = carrito.indexWhere((item) => item.producto.nombre == producto.nombre);
+  int agregar(
+    Product producto, {
+    bool permitirMultiplesGratis = false,
+  }) {
+    final index = carrito.indexWhere(
+      (item) => item.producto.productoId == producto.productoId,
+    );
+
     if (index != -1) {
-      if(producto.esGratis && carrito[index].cantidad >= 1) {
-        // No permitir incrementar si es gratis y ya hay uno en el carrito
-        return carrito[index].cantidad; // Retornamos la cantidad actual sin cambios
+      if (producto.esGratis &&
+          !permitirMultiplesGratis &&
+          carrito[index].cantidad >= 1) {
+        return carrito[index].cantidad;
       }
+
       carrito[index].cantidad++;
       notifyListeners();
-      return carrito[index].cantidad; // Retornamos la nueva cantidad
-    } else {
-      carrito.add(CartItem(producto: producto, cantidad: 1));
-      notifyListeners();
-      return 1; // Primera vez que se agrega
+
+      return carrito[index].cantidad;
     }
+
+    carrito.add(
+      CartItem(
+        producto: producto,
+        cantidad: 1,
+      ),
+    );
+
+    notifyListeners();
+    return 1;
   }
 
   void decrementar(CartItem item) {
@@ -28,15 +44,20 @@ class CartProvider extends ChangeNotifier {
     } else {
       carrito.remove(item);
     }
+
     notifyListeners();
   }
 
-  void incrementar(CartItem item) {
-
-    if(item.producto.esGratis && item.cantidad >= 1) {
-      // No permitir incrementar si es gratis y ya hay uno en el carrito
+  void incrementar(
+    CartItem item, {
+    bool permitirMultiplesGratis = false,
+  }) {
+    if (item.producto.esGratis &&
+        !permitirMultiplesGratis &&
+        item.cantidad >= 1) {
       return;
     }
+
     item.cantidad++;
     notifyListeners();
   }
@@ -47,7 +68,31 @@ class CartProvider extends ChangeNotifier {
   }
 
   double total() {
-    return carrito.fold(0, (sum, item) => sum + item.subtotal);
+    return carrito.fold<double>(
+      0,
+      (acumulado, item) => acumulado + item.subtotal,
+    );
+  }
+
+  int cantidadItems() {
+    return carrito.fold<int>(
+      0,
+      (acumulado, item) => acumulado + item.cantidad,
+    );
+  }
+
+  int cantidadTotalMl() {
+    return carrito.fold<int>(
+      0,
+      (acumulado, item) =>
+          acumulado + (item.producto.cantidadMl * item.cantidad),
+    );
+  }
+
+  bool get contieneMuestraGratis {
+    return carrito.any(
+      (item) => item.producto.esGratis,
+    );
   }
 
   void limpiar() {

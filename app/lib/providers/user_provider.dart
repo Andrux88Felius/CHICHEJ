@@ -98,6 +98,203 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> consumirMuestraGratis() async {
+    if (!esRegistrado) {
+      return false;
+    }
+
+    final String? usuarioUid =
+        user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+
+    if (usuarioUid == null || usuarioUid.isEmpty) {
+      debugPrint('[MUESTRA] UID no disponible.');
+      return false;
+    }
+
+    final DatabaseReference ref = FirebaseDatabase.instanceFor(
+            app: Firebase.app(),
+            databaseURL: "https://chichej-2026-default-rtdb.firebaseio.com")
+        .ref('usuarios/$usuarioUid');
+
+    try {
+      // Primero obtenemos el estado real del servidor.
+      final DataSnapshot snapshot = await ref.get();
+
+      if (!snapshot.exists || snapshot.value is! Map) {
+        debugPrint(
+          '[MUESTRA] El perfil no existe en Realtime Database.',
+        );
+        return false;
+      }
+
+      final Map<dynamic, dynamic> datosServidorOriginales =
+          snapshot.value as Map<dynamic, dynamic>;
+
+      final Map<String, dynamic> datosServidor = {};
+
+      datosServidorOriginales.forEach((key, value) {
+        datosServidor[key.toString()] = value;
+      });
+
+      final int disponiblesServidor =
+          (datosServidor['muestrasGratisDisponibles'] as num?)?.toInt() ?? 0;
+
+      final int utilizadasServidor =
+          (datosServidor['muestrasGratisUtilizadas'] as num?)?.toInt() ?? 0;
+
+      debugPrint('========== MUESTRA GRATIS ==========');
+      debugPrint('Email: ${user?.email}');
+      debugPrint('UID: $usuarioUid');
+      debugPrint(
+        'Servidor antes -> disponibles: $disponiblesServidor | '
+        'utilizadas: $utilizadasServidor',
+      );
+      debugPrint('====================================');
+
+      if (disponiblesServidor <= 0) {
+        debugPrint(
+          '[MUESTRA] El usuario ya no tiene muestras disponibles.',
+        );
+        return false;
+      }
+
+      final TransactionResult resultado = await ref.runTransaction(
+        (Object? valorActual) {
+          Map<String, dynamic> datos;
+
+          // Firebase puede entregar null en la primera ejecución
+          // del callback aunque el nodo exista en el servidor.
+          // En ese caso usamos la lectura que acabamos de realizar.
+          if (valorActual == null) {
+            datos = Map<String, dynamic>.from(datosServidor);
+          } else if (valorActual is Map) {
+            datos = {};
+
+            valorActual.forEach((key, value) {
+              datos[key.toString()] = value;
+            });
+          } else {
+            return Transaction.abort();
+          }
+
+          final int disponibles =
+              (datos['muestrasGratisDisponibles'] as num?)?.toInt() ?? 0;
+
+          final int utilizadas =
+              (datos['muestrasGratisUtilizadas'] as num?)?.toInt() ?? 0;
+
+          if (disponibles <= 0) {
+            return Transaction.abort();
+          }
+
+          datos['muestrasGratisDisponibles'] = disponibles - 1;
+
+          datos['muestrasGratisUtilizadas'] = utilizadas + 1;
+
+          return Transaction.success(datos);
+        },
+        applyLocally: false,
+      );
+
+      if (!resultado.committed) {
+        debugPrint(
+          '[MUESTRA] Firebase rechazó la transacción.',
+        );
+        return false;
+      }
+
+      user!.uid ??= usuarioUid;
+      user!.muestrasGratisDisponibles =
+          (user!.muestrasGratisDisponibles - 1).clamp(0, 999999);
+      user!.muestrasGratisUtilizadas++;
+
+      notifyListeners();
+
+      debugPrint(
+        '[MUESTRA] Consumida correctamente -> '
+        'disponibles=${user!.muestrasGratisDisponibles}, '
+        'utilizadas=${user!.muestrasGratisUtilizadas}',
+      );
+
+      return true;
+    } catch (error) {
+      debugPrint(
+        '[MUESTRA] Error consumiendo muestra: $error',
+      );
+      return false;
+    }
+  }
+
+  Future<void> devolverMuestraGratis() async {
+    if (!esRegistrado) {
+      return;
+    }
+
+    final String? usuarioUid =
+        user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+
+    if (usuarioUid == null || usuarioUid.isEmpty) {
+      return;
+    }
+
+    final DatabaseReference ref = FirebaseDatabase.instanceFor(
+            app: Firebase.app(),
+            databaseURL: "https://chichej-2026-default-rtdb.firebaseio.com")
+        .ref('usuarios/$usuarioUid');
+
+    try {
+      final TransactionResult resultado = await ref.runTransaction(
+        (Object? valorActual) {
+          if (valorActual is! Map) {
+            return Transaction.abort();
+          }
+
+          final Map<String, dynamic> datos = {};
+
+          valorActual.forEach((key, value) {
+            datos[key.toString()] = value;
+          });
+
+          final int disponibles =
+              (datos['muestrasGratisDisponibles'] as num?)?.toInt() ?? 0;
+
+          final int utilizadas =
+              (datos['muestrasGratisUtilizadas'] as num?)?.toInt() ?? 0;
+
+          if (utilizadas <= 0) {
+            return Transaction.abort();
+          }
+
+          datos['muestrasGratisDisponibles'] = disponibles + 1;
+
+          datos['muestrasGratisUtilizadas'] = utilizadas - 1;
+
+          return Transaction.success(datos);
+        },
+      );
+
+      if (!resultado.committed) {
+        return;
+      }
+
+      user!.muestrasGratisDisponibles++;
+
+      if (user!.muestrasGratisUtilizadas > 0) {
+        user!.muestrasGratisUtilizadas--;
+      }
+
+      notifyListeners();
+
+      debugPrint(
+        '[MUESTRA] Beneficio restaurado correctamente.',
+      );
+    } catch (error) {
+      debugPrint(
+        '[MUESTRA] Error devolviendo muestra: $error',
+      );
+    }
+  }
+
   Future<void> logout() async {
     if (esRegistrado || esAdmin) {
       await FirebaseAuth.instance.signOut();
