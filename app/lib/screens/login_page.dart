@@ -100,7 +100,8 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      final bool esAdmin = rolUsuario.toLowerCase() == 'admin';
+      final bool esAdmin =
+          rolUsuario == 'admin' || rolUsuario == 'admin_principal';
 
       final UserModel usuario = UserModel(
         uid: uid,
@@ -110,7 +111,7 @@ class _LoginPageState extends State<LoginPage> {
         muestrasGratisDisponibles: muestrasGratisDisponibles,
         muestrasGratisUtilizadas: muestrasGratisUtilizadas,
         avatarPath: esAdmin ? UserProvider.avatarAdmin : avatarUsuario,
-        rol: esAdmin ? 'admin' : 'cliente',
+        rol: rolUsuario,
       );
 
       final OrderProvider orderProvider =

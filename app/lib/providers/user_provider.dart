@@ -19,14 +19,18 @@ class UserProvider extends ChangeNotifier {
 
   bool get esAdmin => user?.tipoSesion == TipoSesion.admin;
 
+  bool get esAdminPrincipal => user?.rol == 'admin_principal';
+
+  bool get esSubAdmin => user?.rol == 'admin';
+
   String? get uid => user?.uid;
 
   String? get sesionInvitadoId => esInvitado ? _sesionInvitadoId : null;
 
   void setUser(UserModel newUser) {
-    if (newUser.tipoSesion == TipoSesion.admin) {
+    if (newUser.rol == 'admin' || newUser.rol == 'admin_principal') {
+      newUser.tipoSesion = TipoSesion.admin;
       newUser.avatarPath = avatarAdmin;
-      newUser.rol = "admin";
     }
     user = newUser;
     notifyListeners();
@@ -320,7 +324,7 @@ class UserProvider extends ChangeNotifier {
       user!.muestrasGratisUtilizadas =
           (data['muestrasGratisUtilizadas'] as num?)?.toInt() ?? 0;
 
-      if (user!.rol == "admin") {
+      if (user!.rol == 'admin' || user!.rol == 'admin_principal') {
         user!.tipoSesion = TipoSesion.admin;
         user!.avatarPath = avatarAdmin;
       } else {
