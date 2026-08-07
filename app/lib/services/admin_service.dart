@@ -22,6 +22,58 @@ class AdminService {
     return _usuariosStream;
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> observarPedidos() {
+    return _firestore
+        .collection('pedidos')
+        .orderBy(
+          'fechaCreacion',
+          descending: true,
+        )
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> observarAuditoria() {
+    return _firestore
+        .collection('auditoria_admin')
+        .orderBy(
+          'fecha',
+          descending: true,
+        )
+        .limit(100)
+        .snapshots();
+  }
+
+  Future<void> registrarAuditoria({
+    required String accion,
+    required String adminUid,
+    required String adminNombre,
+    required String adminRol,
+    String? descripcion,
+    String? usuarioUid,
+    String? usuarioNombre,
+    String? productoId,
+    String? productoNombre,
+    dynamic valorAnterior,
+    dynamic valorNuevo,
+    int? cantidad,
+  }) async {
+    await _firestore.collection('auditoria_admin').add({
+      'accion': accion,
+      'fecha': FieldValue.serverTimestamp(),
+      'adminUid': adminUid,
+      'adminNombre': adminNombre,
+      'adminRol': adminRol,
+      'descripcion': descripcion,
+      'usuarioUid': usuarioUid,
+      'usuarioNombre': usuarioNombre,
+      'productoId': productoId,
+      'productoNombre': productoNombre,
+      'valorAnterior': valorAnterior,
+      'valorNuevo': valorNuevo,
+      'cantidad': cantidad,
+    });
+  }
+
   Future<void> regalarMuestra({
     required String uid,
     int cantidad = 1,
@@ -104,15 +156,5 @@ class AdminService {
     await _database.ref('usuarios/$uid').update({
       'rol': nuevoRol,
     });
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> observarPedidos() {
-    return _firestore
-        .collection('pedidos')
-        .orderBy(
-          'fechaCreacion',
-          descending: true,
-        )
-        .snapshots();
   }
 }

@@ -10,6 +10,7 @@ import '../providers/user_provider.dart';
 import '../services/admin_service.dart';
 import '../services/product_service.dart';
 import '../utils/colors.dart';
+import 'admin_user_detail_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -22,22 +23,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final ProductService _productService = ProductService();
   final AdminService _adminService = AdminService();
 
-  // ============================================================
-  // CACHE DE USUARIOS
-  // ============================================================
-
   StreamSubscription<fb_db.DatabaseEvent>? _usuariosSubscription;
 
   List<Map<String, dynamic>> _usuariosCache = [];
 
   bool _cargandoUsuarios = true;
-
   Object? _errorUsuarios;
 
   @override
   void initState() {
     super.initState();
-
     _iniciarEscuchaUsuarios();
   }
 
@@ -70,7 +65,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   // ============================================================
-  // CONVERTIR USUARIOS DE RTDB A LISTA
+  // USUARIOS RTDB
   // ============================================================
 
   List<Map<String, dynamic>> _obtenerUsuarios(
@@ -98,8 +93,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       }
     });
 
-    // Primero admin principal, luego admins,
-    // después clientes en orden alfabético.
     int prioridadRol(String rol) {
       if (rol == 'admin_principal') return 0;
       if (rol == 'admin') return 1;
@@ -129,6 +122,85 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     });
 
     return usuarios;
+  }
+
+  // ============================================================
+  // DETALLE USUARIO
+  // ============================================================
+
+  void _abrirDetalleUsuario(
+    Map<String, dynamic> usuario,
+  ) {
+    final String uid = usuario['uid']?.toString() ?? '';
+
+    final String nombre = usuario['nombre']?.toString() ?? 'Usuario';
+
+    final String email = usuario['email']?.toString() ?? '';
+
+    final String rol = usuario['rol']?.toString() ?? 'cliente';
+
+    final String? avatarPath = usuario['avatarPath']?.toString();
+
+    final int muestrasDisponibles =
+        (usuario['muestrasGratisDisponibles'] as num?)?.toInt() ?? 0;
+
+    final int muestrasUtilizadas =
+        (usuario['muestrasGratisUtilizadas'] as num?)?.toInt() ?? 0;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminUserDetailPage(
+          uid: uid,
+          nombre: nombre,
+          email: email,
+          rol: rol,
+          avatarPath: avatarPath,
+          muestrasDisponibles: muestrasDisponibles,
+          muestrasUtilizadas: muestrasUtilizadas,
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DATOS ADMIN ACTUAL
+  // ============================================================
+
+  UserProvider _userProviderActual() {
+    return Provider.of<UserProvider>(
+      context,
+      listen: false,
+    );
+  }
+
+  Future<void> _registrarAuditoria({
+    required String accion,
+    required String descripcion,
+    String? usuarioUid,
+    String? usuarioNombre,
+    String? productoId,
+    String? productoNombre,
+    dynamic valorAnterior,
+    dynamic valorNuevo,
+    int? cantidad,
+  }) async {
+    final UserProvider userProvider = _userProviderActual();
+
+    await _adminService.registrarAuditoria(
+      accion: accion,
+      adminUid: userProvider.uid ?? '',
+      adminNombre: userProvider.user?.nombre ?? 'Administrador',
+      adminRol: userProvider.user?.rol ?? 'admin',
+      descripcion: descripcion,
+      usuarioUid: usuarioUid,
+      usuarioNombre: usuarioNombre,
+      productoId: productoId,
+      productoNombre: productoNombre,
+      valorAnterior: valorAnterior,
+      valorNuevo: valorNuevo,
+      cantidad: cantidad,
+    );
   }
 
   // ============================================================
@@ -210,10 +282,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       return;
     }
 
+    final double precioAnterior = producto.precio;
+
     try {
       await _productService.actualizarPrecio(
         productoId: producto.productoId,
         nuevoPrecio: nuevoPrecio,
+      );
+
+      await _registrarAuditoria(
+        accion: 'cambio_precio',
+        descripcion: 'Cambió el precio de ${producto.nombre}',
+        productoId: producto.productoId,
+        productoNombre: producto.nombre,
+        valorAnterior: precioAnterior,
+        valorNuevo: nuevoPrecio,
       );
 
       if (!mounted) return;
@@ -222,6 +305,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         SnackBar(
           content: Text(
             '${producto.nombre}: '
+            '${precioAnterior.toStringAsFixed(2)} Bs → '
             '${nuevoPrecio.toStringAsFixed(2)} Bs',
           ),
           backgroundColor: Colors.green,
@@ -248,6 +332,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Future<void> _regalarMuestra({
     required String uid,
     required String nombre,
+    required int disponiblesActuales,
   }) async {
     final bool? confirmar = await showDialog<bool>(
       context: context,
@@ -307,6 +392,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     try {
       await _adminService.regalarMuestra(
         uid: uid,
+        cantidad: 1,
+      );
+
+      await _registrarAuditoria(
+        accion: 'regalo_muestra',
+        descripcion: 'Regaló 1 muestra gratuita a $nombre',
+        usuarioUid: uid,
+        usuarioNombre: nombre,
+        valorAnterior: disponiblesActuales,
+        valorNuevo: disponiblesActuales + 1,
         cantidad: 1,
       );
 
@@ -412,6 +507,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         nuevoRol: nuevoRol,
       );
 
+      await _registrarAuditoria(
+        accion: 'cambio_rol',
+        descripcion: 'Cambió el rol de $nombre '
+            'de $rolActual a $nuevoRol',
+        usuarioUid: uid,
+        usuarioNombre: nombre,
+        valorAnterior: rolActual,
+        valorNuevo: nuevoRol,
+      );
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -439,7 +544,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   // ============================================================
-  // AVATAR USUARIO
+  // AVATAR
   // ============================================================
 
   Widget _avatarUsuario(
@@ -494,7 +599,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   // ============================================================
-  // TARJETA ESTADÍSTICA
+  // TARJETAS RESUMEN
   // ============================================================
 
   Widget _tarjetaEstadistica({
@@ -522,7 +627,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               fit: BoxFit.scaleDown,
               child: Text(
                 valor,
-                textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -534,7 +638,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               fit: BoxFit.scaleDown,
               child: Text(
                 titulo,
-                textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 13,
                   color: Colors.black54,
@@ -579,14 +682,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         int pedidosTotales = 0;
         int pedidosEntregados = 0;
         int mlRegistrados = 0;
-
         double ventas = 0;
 
         final Map<String, int> productosVendidos = {};
+
         final Map<String, int> metodosPago = {};
 
         for (final doc in docs) {
-          final Map<String, dynamic> data = doc.data();
+          final data = doc.data();
 
           pedidosTotales++;
 
@@ -626,12 +729,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         }
 
         String productoMasPedido = 'Sin datos';
+
         int cantidadMasPedida = 0;
 
         productosVendidos.forEach(
           (producto, cantidad) {
             if (cantidad > cantidadMasPedida) {
               cantidadMasPedida = cantidad;
+
               productoMasPedido = producto;
             }
           },
@@ -654,10 +759,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-
-              // Más alto para evitar el overflow
               childAspectRatio: 1.15,
-
               children: [
                 _tarjetaEstadistica(
                   titulo: 'Pedidos',
@@ -710,17 +812,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               ),
             ),
             const SizedBox(height: 10),
-            if (metodosPago.isEmpty)
-              const Card(
-                child: ListTile(
-                  leading: Icon(
-                    Icons.info_outline,
-                  ),
-                  title: Text(
-                    'Todavía no hay pagos registrados',
-                  ),
-                ),
-              ),
             ...metodosPago.entries.map(
               (entry) {
                 IconData icono;
@@ -753,36 +844,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 );
               },
             ),
-            const SizedBox(height: 20),
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Colors.red,
-                ),
-                title: const Text(
-                  'Reportes PDF',
-                ),
-                subtitle: const Text(
-                  'Próximamente podrás generar '
-                  'reportes de ventas, usuarios '
-                  'y productos.',
-                ),
-                trailing: const Icon(
-                  Icons.chevron_right,
-                ),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'La exportación PDF será '
-                        'la siguiente fase del panel.',
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
           ],
         );
       },
@@ -790,7 +851,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   // ============================================================
-  // DATOS DE MUESTRAS
+  // DATOS USUARIO
   // ============================================================
 
   Widget _datoUsuario({
@@ -847,37 +908,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.cloud_off,
-                size: 60,
-                color: Colors.grey,
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'No se pudieron cargar los usuarios.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$_errorUsuarios',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.black54,
-                ),
-              ),
-            ],
+          child: Text(
+            'No se pudieron cargar '
+            'los usuarios.\n'
+            '$_errorUsuarios',
+            textAlign: TextAlign.center,
           ),
         ),
       );
     }
 
-    final List<Map<String, dynamic>> usuarios = _usuariosCache;
+    final usuarios = _usuariosCache;
 
     if (usuarios.isEmpty) {
       return const Center(
@@ -915,19 +956,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         const SizedBox(height: 12),
         if (userProvider.esAdminPrincipal)
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(
+              12,
+            ),
             margin: const EdgeInsets.only(
               bottom: 14,
             ),
             decoration: BoxDecoration(
               color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(
+                14,
+              ),
               border: Border.all(
                 color: Colors.amber.shade300,
               ),
             ),
             child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   Icons.workspace_premium,
@@ -936,9 +980,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Administrador principal: '
-                    'puedes asignar o quitar '
-                    'administradores.',
+                    'Solo el administrador '
+                    'principal puede asignar '
+                    'o quitar administradores.',
                   ),
                 ),
               ],
@@ -985,7 +1029,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 bottom: 12,
               ),
               child: ExpansionTile(
-                leading: _avatarUsuario(usuario),
+                leading: _avatarUsuario(
+                  usuario,
+                ),
                 title: Text(
                   nombre,
                   maxLines: 1,
@@ -1035,7 +1081,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           icono: Icons.card_giftcard,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(
+                        width: 10,
+                      ),
                       Expanded(
                         child: _datoUsuario(
                           titulo: 'Utilizadas',
@@ -1045,7 +1093,32 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(
+                    height: 14,
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.lilaOscuro,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () {
+                        _abrirDetalleUsuario(
+                          usuario,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.analytics,
+                      ),
+                      label: const Text(
+                        'Ver progreso e historial',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(
+                    height: 8,
+                  ),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -1053,6 +1126,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         _regalarMuestra(
                           uid: uid,
                           nombre: nombre,
+                          disponiblesActuales: disponibles,
                         );
                       },
                       icon: const Icon(
@@ -1064,7 +1138,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ),
                   ),
                   if (puedeCambiarRol) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(
+                      height: 8,
+                    ),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
@@ -1089,32 +1165,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ),
                   ],
                   if (esPrincipal) ...[
-                    const SizedBox(height: 10),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.workspace_premium,
-                          size: 20,
-                          color: Colors.orange,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Administrador principal',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(
+                      height: 10,
                     ),
-                  ],
-                  if (esPropioUsuario && !esPrincipal) ...[
-                    const SizedBox(height: 10),
                     const Text(
-                      'Esta es tu cuenta actual.',
+                      'Administrador principal',
                       style: TextStyle(
-                        color: Colors.black54,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -1138,22 +1196,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         if (snapshot.hasError) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.cloud_off,
-                    size: 60,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    'No se pudo leer el catálogo.\n'
-                    '${snapshot.error}',
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+              padding: const EdgeInsets.all(
+                24,
+              ),
+              child: Text(
+                'No se pudo leer el '
+                'catálogo.\n'
+                '${snapshot.error}',
+                textAlign: TextAlign.center,
               ),
             ),
           );
@@ -1165,7 +1215,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           );
         }
 
-        final List<Product> productos = snapshot.data ?? [];
+        final productos = snapshot.data ?? [];
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -1179,8 +1229,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
             const SizedBox(height: 5),
             const Text(
-              'Los cambios de precio se reflejan '
-              'en tiempo real en el catálogo.',
+              'Los cambios se reflejan '
+              'en tiempo real.',
               style: TextStyle(
                 color: Colors.black54,
               ),
@@ -1189,13 +1239,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ...productos.map(
               (producto) {
                 return Card(
-                  margin: const EdgeInsets.only(
-                    bottom: 10,
-                  ),
                   child: ListTile(
                     leading: SizedBox(
-                      width: 54,
-                      height: 54,
+                      width: 50,
+                      height: 50,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(
                           10,
@@ -1259,15 +1306,303 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   // ============================================================
-  // PANTALLA PRINCIPAL ADMIN
+  // ACTIVIDAD / AUDITORIA
+  // ============================================================
+
+  String _formatearFechaActividad(
+    Timestamp? timestamp,
+  ) {
+    if (timestamp == null) {
+      return 'Sin fecha';
+    }
+
+    final DateTime fecha = timestamp.toDate();
+
+    String dosDigitos(int valor) => valor.toString().padLeft(2, '0');
+
+    return '${dosDigitos(fecha.day)}/'
+        '${dosDigitos(fecha.month)}/'
+        '${fecha.year} • '
+        '${dosDigitos(fecha.hour)}:'
+        '${dosDigitos(fecha.minute)}';
+  }
+
+  IconData _iconoAuditoria(
+    String accion,
+  ) {
+    switch (accion) {
+      case 'cambio_precio':
+        return Icons.price_change;
+
+      case 'regalo_muestra':
+        return Icons.card_giftcard;
+
+      case 'cambio_rol':
+        return Icons.admin_panel_settings;
+
+      default:
+        return Icons.history;
+    }
+  }
+
+  Color _colorAuditoria(
+    String accion,
+  ) {
+    switch (accion) {
+      case 'cambio_precio':
+        return Colors.blue;
+
+      case 'regalo_muestra':
+        return Colors.green;
+
+      case 'cambio_rol':
+        return Colors.orange;
+
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _tituloAuditoria(
+    String accion,
+  ) {
+    switch (accion) {
+      case 'cambio_precio':
+        return 'Cambio de precio';
+
+      case 'regalo_muestra':
+        return 'Muestra otorgada';
+
+      case 'cambio_rol':
+        return 'Cambio de rol';
+
+      default:
+        return 'Actividad administrativa';
+    }
+  }
+
+  Widget _buildActividad() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _adminService.observarAuditoria(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(
+                24,
+              ),
+              child: Text(
+                'No se pudo cargar '
+                'la actividad.\n'
+                '${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        final docs = snapshot.data!.docs;
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(30),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.history,
+                    size: 70,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'Todavía no hay '
+                    'actividad administrativa.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text(
+              'Actividad administrativa',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'Registro de cambios realizados '
+              'por administradores.',
+              style: TextStyle(
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...docs.map(
+              (doc) {
+                final data = doc.data();
+
+                final String accion = data['accion']?.toString() ?? '';
+
+                final String adminNombre =
+                    data['adminNombre']?.toString() ?? 'Administrador';
+
+                final String adminRol = data['adminRol']?.toString() ?? 'admin';
+
+                final String descripcion =
+                    data['descripcion']?.toString() ?? '';
+
+                final dynamic valorAnterior = data['valorAnterior'];
+
+                final dynamic valorNuevo = data['valorNuevo'];
+
+                final Timestamp? fecha = data['fecha'] is Timestamp
+                    ? data['fecha'] as Timestamp
+                    : null;
+
+                final Color color = _colorAuditoria(
+                  accion,
+                );
+
+                return Card(
+                  margin: const EdgeInsets.only(
+                    bottom: 10,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: color.withValues(
+                            alpha: 0.12,
+                          ),
+                          child: Icon(
+                            _iconoAuditoria(
+                              accion,
+                            ),
+                            color: color,
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 12,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _tituloAuditoria(
+                                  accion,
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 4,
+                              ),
+                              Text(
+                                descripcion,
+                                style: const TextStyle(
+                                  height: 1.3,
+                                ),
+                              ),
+                              if (valorAnterior != null ||
+                                  valorNuevo != null) ...[
+                                const SizedBox(
+                                  height: 8,
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(
+                                      10,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$valorAnterior → $valorNuevo',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(
+                                height: 8,
+                              ),
+                              Text(
+                                '$adminNombre • '
+                                '${adminRol == 'admin_principal' ? 'Admin principal' : 'Admin'}',
+                                style: const TextStyle(
+                                  color: AppColors.lilaOscuro,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 2,
+                              ),
+                              Text(
+                                _formatearFechaActividad(
+                                  fecha,
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.black45,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // BUILD
   // ============================================================
 
   @override
-  Widget build(BuildContext context) {
-    final UserProvider userProvider = Provider.of<UserProvider>(context);
+  Widget build(
+    BuildContext context,
+  ) {
+    final UserProvider userProvider = Provider.of<UserProvider>(
+      context,
+    );
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -1277,24 +1612,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           backgroundColor: AppColors.lilaOscuro,
           bottom: const TabBar(
+            isScrollable: true,
             tabs: [
               Tab(
-                icon: Icon(
-                  Icons.dashboard,
-                ),
+                icon: Icon(Icons.dashboard),
                 text: 'Resumen',
               ),
               Tab(
-                icon: Icon(
-                  Icons.people,
-                ),
+                icon: Icon(Icons.people),
                 text: 'Usuarios',
               ),
               Tab(
-                icon: Icon(
-                  Icons.local_drink,
-                ),
+                icon: Icon(Icons.local_drink),
                 text: 'Productos',
+              ),
+              Tab(
+                icon: Icon(Icons.history),
+                text: 'Actividad',
               ),
             ],
           ),
@@ -1306,6 +1640,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               userProvider,
             ),
             _buildProductos(),
+            _buildActividad(),
           ],
         ),
       ),
