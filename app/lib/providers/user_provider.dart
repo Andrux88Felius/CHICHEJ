@@ -8,7 +8,7 @@ import '../models/user_model.dart';
 
 class UserProvider extends ChangeNotifier {
   static const _claveSesionInvitado = 'chichej_sesion_invitado_id';
-  static const avatarAdmin = 'assets/icon/logo_icon2.png';
+  static const avatarAdmin = 'assets/logochichej.png';
 
   UserModel? user;
   String? _sesionInvitadoId;
