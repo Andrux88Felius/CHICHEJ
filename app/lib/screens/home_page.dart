@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../data/product_data.dart';
 import '../providers/user_provider.dart';
-import '../models/product_model.dart';
-import 'product_detail_page.dart';
 import 'cart_page.dart';
+import 'product_detail_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -12,19 +12,11 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
     final user = userProvider.user;
+    final bool esInvitado = user == null || user.nombre == 'Invitado';
 
-    final List<Map<String, String>> todosLosProductos = [
-      {"nombre": "Prueba Gratis", "img": "assets/productos/45ml.png", "option": "1"},
-      {"nombre": "150ml", "img": "assets/productos/150ml.png", "option": "2"},
-      {"nombre": "250ml", "img": "assets/productos/250ml.png", "option": "3"},
-      {"nombre": "500ml", "img": "assets/productos/500ml.png", "option": "4"},
-      {"nombre": "750ml", "img": "assets/productos/750ml.png", "option": "5"},
-      {"nombre": "1000ml", "img": "assets/productos/1000ml.png", "option": "6"},
-    ];
-
-    final List<Map<String, String>> productosMostrados = (user == null || user.nombre == "Invitado")
-        ? todosLosProductos.where((p) => p['nombre'] != "Prueba Gratis").toList()
-        : todosLosProductos;
+    final productosMostrados = esInvitado
+        ? productos.where((producto) => !producto.esGratis).toList()
+        : productos;
 
     return Scaffold(
       appBar: AppBar(
@@ -36,18 +28,25 @@ class HomePage extends StatelessWidget {
             CircleAvatar(
               radius: 25,
               backgroundColor: Colors.white,
-              backgroundImage: user?.avatarPath != null 
-                  ? AssetImage(user!.avatarPath!) 
+              backgroundImage: user?.avatarPath != null
+                  ? AssetImage(user!.avatarPath!)
                   : const AssetImage('assets/avatares/invitado.png'),
             ),
             const SizedBox(width: 15),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Hola,", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const Text(
+                  'Hola,',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
                 Text(
-                  user?.nombre ?? "Invitado",
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+                  user?.nombre ?? 'Invitado',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
               ],
             ),
@@ -57,12 +56,16 @@ class HomePage extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 20),
             child: IconButton(
-              icon: const Icon(Icons.shopping_cart, color: Colors.deepPurple, size: 30),
+              icon: const Icon(
+                Icons.shopping_cart,
+                color: Colors.deepPurple,
+                size: 30,
+              ),
               onPressed: () {
                 Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CartPage()),
-        );
+                  context,
+                  MaterialPageRoute(builder: (context) => const CartPage()),
+                );
               },
             ),
           ),
@@ -79,38 +82,34 @@ class HomePage extends StatelessWidget {
         itemCount: productosMostrados.length,
         itemBuilder: (context, index) {
           final producto = productosMostrados[index];
-          final bool esGratis = producto["nombre"] == "Prueba Gratis";
-
-          // Definir datos para la navegación
-          double precio = _obtenerPrecio(producto["nombre"]!);
-          
-          final Product productoObj = Product(
-            nombre: producto["nombre"]!,
-            descripcion: "Tradición y sabor en cada gota de ${producto["nombre"]}.",
-            precio: precio,
-            imagen: producto["img"]!,
-            option: int.parse(producto["option"]!),
-            esGratis: esGratis,
-          );
 
           return InkWell(
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => ProductDetailPage(producto: productoObj)),
+                MaterialPageRoute(
+                  builder: (_) => ProductDetailPage(producto: producto),
+                ),
               );
             },
             child: Card(
               elevation: 5,
-              color: esGratis ? const Color(0xFFFFF8D6) : Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              color: producto.esGratis ? const Color(0xFFFFF8D6) : Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
                     child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-                      child: Image.asset(producto["img"]!, fit: BoxFit.cover),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(18),
+                      ),
+                      child: Image.asset(
+                        producto.imagen,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   Padding(
@@ -118,27 +117,47 @@ class HomePage extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          producto["nombre"]!,
+                          producto.nombre,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        esGratis
+                        producto.esGratis
                             ? const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  SizedBox(width: 6),
-                                  Text(" 🎁 GRATIS", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 18)),
+                                  Text(
+                                    '🎁 GRATIS',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
                                 ],
                               )
                             : Text(
-                                "$precio Bs",
-                                style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold, fontSize: 17),
+                                '${producto.precio} Bs',
+                                style: const TextStyle(
+                                  color: Colors.deepPurple,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
+                                ),
                               ),
-                        if (esGratis)
+                        if (producto.esGratis)
                           const Padding(
                             padding: EdgeInsets.only(top: 5),
-                            child: Text("Solo por registro", textAlign: TextAlign.center, style: TextStyle(color: Colors.black54, fontSize: 12)),
+                            child: Text(
+                              'Solo por registro',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -150,16 +169,5 @@ class HomePage extends StatelessWidget {
         },
       ),
     );
-  }
-
-  double _obtenerPrecio(String nombre) {
-    switch (nombre) {
-      case "150ml": return 3.0;
-      case "250ml": return 5.0;
-      case "500ml": return 10.0;
-      case "750ml": return 15.0;
-      case "1000ml": return 20.0;
-      default: return 0.0;
-    }
   }
 }
