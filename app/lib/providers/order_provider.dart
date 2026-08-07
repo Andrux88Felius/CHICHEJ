@@ -4,8 +4,14 @@ import '../models/order_model.dart';
 
 class OrderProvider extends ChangeNotifier {
   List<Order> historial = [];
+  final List<Map<String, dynamic>> _reservas = [];
 
-  // providers/order_provider.dart
+  void limpiarSesion() {
+    historial.clear();
+    _reservas.clear();
+    notifyListeners();
+  }
+
   void agregarCompra(List<CartItem> carritoItems, double total) {
     List<OrderItem> itemsParaGuardar = carritoItems.map((c) => 
       OrderItem(producto: c.producto, cantidad: c.cantidad)
@@ -14,8 +20,6 @@ class OrderProvider extends ChangeNotifier {
     historial.add(Order(items: itemsParaGuardar, fecha: DateTime.now(), total: total));
     notifyListeners();
   }
-
-  final List<Map<String, dynamic>> _reservas = [];
   
   List<Map<String, dynamic>> get reservas => _reservas;
 

@@ -1,31 +1,53 @@
+enum TipoSesion {
+  invitado,
+  registrado,
+  admin,
+  desconocido,
+}
+
 class UserModel {
   String? uid; // Es bueno tenerlo aquí para operaciones futuras
   String nombre;
   String email;
   String password;
-  bool pruebaGratis;
-  String? avatarPath; // Nuevo: guarda la ruta del animalito elegido
-  String? rol;       // Nuevo: "cliente" o "admin"
+  TipoSesion tipoSesion;
+  int muestrasGratisDisponibles;
+  int muestrasGratisUtilizadas;
+  String? avatarPath; 
+  String? rol;       
 
   UserModel({
     this.uid,
     required this.nombre,
     required this.email,
-    required this.password,
-    this.pruebaGratis = true,
+    this.password = "",
+    required this.tipoSesion,
+    this.muestrasGratisDisponibles = 0,
+    this.muestrasGratisUtilizadas = 0,
     this.avatarPath,
-    this.rol = "cliente", // Valor por defecto
+    this.rol = "cliente",
   });
 
   // Esto ayuda a convertir los datos de Firebase a un objeto UserModel
   factory UserModel.fromMap(Map<dynamic, dynamic> map, String uid) {
+    final rol = map['rol']?.toString() ?? "cliente";
+    final esAdmin = rol == "admin";
+
     return UserModel(
       uid: uid,
       nombre: map['nombre'] ?? "Usuario",
       email: map['email'] ?? "",
-      password: "", // Normalmente no guardamos la contraseña en el modelo por seguridad
-      avatarPath: map['avatarPath'],
-      rol: map['rol'] ?? "cliente",
+      tipoSesion: esAdmin 
+      ? TipoSesion.admin 
+      : TipoSesion.registrado,
+      muestrasGratisDisponibles:
+      (map['muestrasGratisDisponibles'] as num ?)?.toInt() ?? 0,
+      muestrasGratisUtilizadas: 
+      (map['muestrasGratisUtilizadas'] as num ?)?.toInt() ?? 0,
+      avatarPath: esAdmin
+          ? "assets/icon/logo_icon2.png"
+          : map['avatarPath'],
+      rol: rol
     );
   }
 }
