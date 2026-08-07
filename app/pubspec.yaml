@@ -1,0 +1,81 @@
+name: chichej
+description: "App para la venta de Chicha."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  provider: ^6.1.2
+  firebase_core: ^3.0.0
+  cloud_firestore: ^5.0.0
+  shared_preferences: ^2.2.0
+  permission_handler: ^11.0.0
+  qr_flutter: ^4.1.0
+  cupertino_icons: ^1.0.8
+  firebase_auth: ^5.7.0
+  firebase_database: ^11.3.10
+  url_launcher: ^6.3.2
+  gal: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/logochichej.png
+    - assets/pedidos.png
+    - assets/150ml.png
+    - assets/250ml.jpg
+    - assets/500ml.jpg
+    - assets/750ml.jpg
+    - assets/1000ml.jpg
+    - assets/productos/45ml.png
+    - assets/productos/150ml.png
+    - assets/productos/250ml.png
+    - assets/productos/500ml.png
+    - assets/productos/750ml.png
+    - assets/productos/1000ml.png
+    - assets/promos/enero.png
+    - assets/promos/febrero.png
+    - assets/promos/marzo.png
+    - assets/promos/abril.png
+    - assets/promos/mayo.png
+    - assets/promos/junio.png
+    - assets/promos/julio.png
+    - assets/promos/agosto.png
+    - assets/promos/septiembre.png
+    - assets/promos/octubre.png
+    - assets/promos/noviembre.png
+    - assets/promos/diciembre.png
+    - assets/avatares/avatar1.png
+    - assets/avatares/avatar2.png
+    - assets/avatares/avatar3.png
+    - assets/avatares/avatar4.png
+    - assets/avatares/avatar5.png
+    - assets/avatares/avatar6.png
+    - assets/avatares/avatar7.png
+    - assets/avatares/avatar8.png
+    - assets/avatares/avatar9.png
+    - assets/avatares/invitado.png
+    - assets/qr3.jpeg
+    - assets/qr5.jpeg
+    - assets/qr10.jpeg
+    - assets/qr15.jpeg
+    - assets/qr20.jpeg
+    - assets/qrlibre.jpeg
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/logo_icon.png"

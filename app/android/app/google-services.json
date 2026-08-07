@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "152737624623",
+    "project_id": "chichej-2026",
+    "storage_bucket": "chichej-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:152737624623:android:1fb1cc656535e1944e4cda",
+        "android_client_info": {
+          "package_name": "com.chichej.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQScUs6hcUhq4x9lnXwVsTuRnXo71jEdw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
