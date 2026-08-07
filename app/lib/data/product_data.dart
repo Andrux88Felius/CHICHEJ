@@ -1,8 +1,8 @@
 import '../models/product_model.dart';
 
-List<Product> productos = [
-  Product(
-    productoId: 'chicha_tradicional_muestra_45ml',
+final List<Product> productosFallback = [
+  const Product(
+    productoId: 'muestra_45ml',
     bebidaId: 'chicha_tradicional',
     tipoBebida: 'chicha',
     cantidadMl: 45,
@@ -12,9 +12,10 @@ List<Product> productos = [
     imagen: 'assets/productos/45ml.png',
     esGratis: true,
     option: 1,
+    activo: true,
   ),
-  Product(
-    productoId: 'chicha_tradicional_150ml',
+  const Product(
+    productoId: 'chicha_150ml',
     bebidaId: 'chicha_tradicional',
     tipoBebida: 'chicha',
     cantidadMl: 150,
@@ -23,9 +24,10 @@ List<Product> productos = [
     precio: 3.0,
     imagen: 'assets/productos/150ml.png',
     option: 2,
+    activo: true,
   ),
-  Product(
-    productoId: 'chicha_tradicional_250ml',
+  const Product(
+    productoId: 'chicha_250ml',
     bebidaId: 'chicha_tradicional',
     tipoBebida: 'chicha',
     cantidadMl: 250,
@@ -34,9 +36,10 @@ List<Product> productos = [
     precio: 5.0,
     imagen: 'assets/productos/250ml.png',
     option: 3,
+    activo: true,
   ),
-  Product(
-    productoId: 'chicha_tradicional_500ml',
+  const Product(
+    productoId: 'chicha_500ml',
     bebidaId: 'chicha_tradicional',
     tipoBebida: 'chicha',
     cantidadMl: 500,
@@ -45,9 +48,10 @@ List<Product> productos = [
     precio: 10.0,
     imagen: 'assets/productos/500ml.png',
     option: 4,
+    activo: true,
   ),
-  Product(
-    productoId: 'chicha_tradicional_750ml',
+  const Product(
+    productoId: 'chicha_750ml',
     bebidaId: 'chicha_tradicional',
     tipoBebida: 'chicha',
     cantidadMl: 750,
@@ -56,9 +60,10 @@ List<Product> productos = [
     precio: 15.0,
     imagen: 'assets/productos/750ml.png',
     option: 5,
+    activo: true,
   ),
-  Product(
-    productoId: 'chicha_tradicional_1000ml',
+  const Product(
+    productoId: 'chicha_1000ml',
     bebidaId: 'chicha_tradicional',
     tipoBebida: 'chicha',
     cantidadMl: 1000,
@@ -67,5 +72,6 @@ List<Product> productos = [
     precio: 20.0,
     imagen: 'assets/productos/1000ml.png',
     option: 6,
+    activo: true,
   ),
 ];
