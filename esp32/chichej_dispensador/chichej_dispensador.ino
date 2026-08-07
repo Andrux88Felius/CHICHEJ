@@ -40,6 +40,10 @@
 // ==========================================
 // 2. CONFIGURACIÓN DE PINES Y TIEMPOS
 // ==========================================
+//wi-fi (tiempo de espera)
+unsigned long ultimoIntentoConexionWiFi = 0;
+const unsigned long INTERVALO_RECONEXION_WIFI = 10000;
+
 // Relés
 const int PIN_MEZCLADOR = 33; // Canal 1 del Relé (Mezclador)
 const int PIN_BOMBA     = 26; // Canal 2 del Relé (Bomba de despacho)
@@ -234,13 +238,29 @@ void loop() {
     ultimaVerificacionWiFi = tiempoActual;
 
     if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("[WIFI] Conexión perdida, reintentando...");
-      WiFi.reconnect();
+
+      if (tiempoActual - ultimoIntentoConexionWiFi >=
+          INTERVALO_RECONEXION_WIFI) {
+
+        ultimoIntentoConexionWiFi = tiempoActual;
+
+        Serial.println(
+          "[WIFI] Sin conexion. Iniciando nuevo intento..."
+        );
+
+        WiFi.disconnect(false);
+        delay(50);
+
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+      }
     }
-    else if (estado == REPOSO || estado == MEZCLANDO) {
-      if (millis() - ultimoChequeo >= 5000) {
-        ultimoChequeo = millis();
-        verificarPedidosPendientes();
+    else {
+      if (estado == REPOSO || estado == MEZCLANDO) {
+      
+        if (millis() - ultimoChequeo >= 5000) {
+          ultimoChequeo = millis();
+          verificarPedidosPendientes();
+        }
       }
     }
   }
