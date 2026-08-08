@@ -35,3 +35,6 @@ esp32/**/wifi_credentials.h
 # Sistema
 Thumbs.db
 .DS_Store
+
+# Credenciales ESP32 CHICHEJ
+esp32/chichej_dispensador/secrets.h
