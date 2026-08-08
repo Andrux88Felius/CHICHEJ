@@ -157,4 +157,69 @@ class AdminService {
       'rol': nuevoRol,
     });
   }
+
+  // ============================================================
+  // MENSAJES GENERALES CHICHEJ
+  // ============================================================
+  
+  Stream<QuerySnapshot<Map<String, dynamic>>> observarMensajes() {
+    return _firestore
+        .collection('mensajes')
+        .orderBy(
+          'fechaCreacion',
+          descending: true,
+        )
+        .snapshots();
+  }
+  
+  Future<String> crearMensaje({
+    required String titulo,
+    required String mensaje,
+    required String creadoPorUid,
+    required String creadoPorNombre,
+  }) async {
+    final String tituloLimpio = titulo.trim();
+    final String mensajeLimpio = mensaje.trim();
+  
+    if (tituloLimpio.isEmpty) {
+      throw ArgumentError(
+        'El título no puede estar vacío.',
+      );
+    }
+  
+    if (mensajeLimpio.isEmpty) {
+      throw ArgumentError(
+        'El mensaje no puede estar vacío.',
+      );
+    }
+  
+    final DocumentReference<Map<String, dynamic>> documento =
+        await _firestore.collection('mensajes').add({
+      'titulo': tituloLimpio,
+      'mensaje': mensajeLimpio,
+      'tipo': 'general',
+      'activo': true,
+      'fechaCreacion': FieldValue.serverTimestamp(),
+      'creadoPorUid': creadoPorUid,
+      'creadoPorNombre': creadoPorNombre,
+    });
+  
+    return documento.id;
+  }
+  
+  Future<void> cambiarEstadoMensaje({
+    required String mensajeId,
+    required bool activo,
+  }) async {
+    await _firestore.collection('mensajes').doc(mensajeId).update({
+      'activo': activo,
+      'fechaActualizacion': FieldValue.serverTimestamp(),
+    });
+  }
+  
+  Future<void> eliminarMensaje({
+    required String mensajeId,
+  }) async {
+    await _firestore.collection('mensajes').doc(mensajeId).delete();
+  }
 }

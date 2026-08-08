@@ -1,10 +1,10 @@
 import 'dart:async';
-
+import 'dispenser_admin_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart' as fb_db;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import '../services/dispenser_service.dart';
 import '../models/product_model.dart';
 import '../providers/user_provider.dart';
 import '../services/admin_service.dart';
@@ -22,6 +22,7 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final ProductService _productService = ProductService();
   final AdminService _adminService = AdminService();
+  final DispenserService _dispenserService = DispenserService();
 
   StreamSubscription<fb_db.DatabaseEvent>? _usuariosSubscription;
 
@@ -543,6 +544,147 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+// ============================================================
+// BLOQUEAR / DESBLOQUEAR USUARIO
+// ============================================================
+
+  Future<void> _cambiarBloqueoUsuario({
+    required String uid,
+    required String nombre,
+    required bool bloqueadoActual,
+  }) async {
+    final bool nuevoEstado = !bloqueadoActual;
+
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                nuevoEstado
+                    ? Icons.block
+                    : Icons.lock_open,
+                color: nuevoEstado
+                    ? Colors.redAccent
+                    : Colors.green,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  nuevoEstado
+                      ? 'Bloquear usuario'
+                      : 'Desbloquear usuario',
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            nuevoEstado
+                ? '¿Deseas bloquear a $nombre?\n\n'
+                    'El usuario no podrá realizar '
+                    'nuevos pedidos hasta que vuelva '
+                    'a ser desbloqueado.'
+                : '¿Deseas desbloquear a $nombre?\n\n'
+                    'El usuario podrá volver a '
+                    'realizar pedidos normalmente.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancelar',
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: nuevoEstado
+                    ? Colors.redAccent
+                    : Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              icon: Icon(
+                nuevoEstado
+                    ? Icons.block
+                    : Icons.lock_open,
+              ),
+              label: Text(
+                nuevoEstado
+                    ? 'Bloquear'
+                    : 'Desbloquear',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) {
+      return;
+    }
+
+    try {
+      await _dispenserService.bloquearUsuario(
+        uid: uid,
+        bloqueado: nuevoEstado,
+      );
+
+      await _registrarAuditoria(
+        accion: nuevoEstado
+            ? 'usuario_bloqueado'
+            : 'usuario_desbloqueado',
+        descripcion: nuevoEstado
+            ? 'Bloqueó a $nombre'
+            : 'Desbloqueó a $nombre',
+        usuarioUid: uid,
+        usuarioNombre: nombre,
+        valorAnterior: bloqueadoActual,
+        valorNuevo: nuevoEstado,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            nuevoEstado
+                ? '$nombre fue bloqueado.'
+                : '$nombre fue desbloqueado.',
+          ),
+          backgroundColor: nuevoEstado
+              ? Colors.redAccent
+              : Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No se pudo cambiar el estado del usuario: $error',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   // ============================================================
   // AVATAR
   // ============================================================
@@ -1010,6 +1152,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
             final bool esSubAdmin = rol == 'admin';
 
+            final bool estaBloqueado =
+                usuario['bloqueado'] == true;
+
+            final bool puedeCambiarBloqueo =
+                userProvider.esAdminPrincipal &&
+                !esPropioUsuario &&
+                !esPrincipal;
+
             final bool puedeCambiarRol = userProvider.esAdminPrincipal &&
                 !esPropioUsuario &&
                 !esPrincipal;
@@ -1061,6 +1211,35 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             ? FontWeight.bold
                             : FontWeight.normal,
                       ),
+                    ),
+                    const SizedBox(height: 3),
+
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          estaBloqueado
+                              ? Icons.block
+                              : Icons.check_circle,
+                          size: 15,
+                          color: estaBloqueado
+                              ? Colors.redAccent
+                              : Colors.green,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          estaBloqueado
+                              ? 'BLOQUEADO'
+                              : 'ACTIVO',
+                          style: TextStyle(
+                            color: estaBloqueado
+                                ? Colors.redAccent
+                                : Colors.green,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1137,6 +1316,43 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                   ),
+                  if (puedeCambiarBloqueo) ...[
+                     const SizedBox(
+                       height: 8,
+                     ),
+                     SizedBox(
+                       width: double.infinity,
+                       child: OutlinedButton.icon(
+                         style: OutlinedButton.styleFrom(
+                           foregroundColor: estaBloqueado
+                               ? Colors.green
+                               : Colors.redAccent,
+                           side: BorderSide(
+                             color: estaBloqueado
+                                 ? Colors.green
+                                 : Colors.redAccent,
+                           ),
+                         ),
+                         onPressed: () {
+                           _cambiarBloqueoUsuario(
+                             uid: uid,
+                             nombre: nombre,
+                             bloqueadoActual: estaBloqueado,
+                           );
+                         },
+                         icon: Icon(
+                           estaBloqueado
+                               ? Icons.lock_open
+                               : Icons.block,
+                         ),
+                         label: Text(
+                           estaBloqueado
+                               ? 'Desbloquear usuario'
+                               : 'Bloquear usuario',
+                         ),
+                       ),
+                     ),
+]                   ,
                   if (puedeCambiarRol) ...[
                     const SizedBox(
                       height: 8,
@@ -1340,6 +1556,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'cambio_rol':
         return Icons.admin_panel_settings;
 
+      case 'usuario_bloqueado':
+        return Icons.block;
+
+      case 'usuario_desbloqueado':
+        return Icons.lock_open;
+
       default:
         return Icons.history;
     }
@@ -1358,6 +1580,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'cambio_rol':
         return Colors.orange;
 
+      case 'usuario_bloqueado':
+        return Colors.redAccent;
+
+      case 'usuario_desbloqueado':
+        return Colors.green;
+
       default:
         return Colors.grey;
     }
@@ -1375,6 +1603,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       case 'cambio_rol':
         return 'Cambio de rol';
+
+      case 'usuario_bloqueado':
+        return 'Usuario bloqueado';
+      
+      case 'usuario_desbloqueado':
+        return 'Usuario desbloqueado';
 
       default:
         return 'Actividad administrativa';
@@ -1602,7 +1836,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -1630,6 +1864,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 icon: Icon(Icons.history),
                 text: 'Actividad',
               ),
+              Tab(
+                icon: Icon(Icons.precision_manufacturing),
+                text: 'Máquina',
+              ),
             ],
           ),
         ),
@@ -1641,6 +1879,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
             _buildProductos(),
             _buildActividad(),
+            const DispenserAdminPage(),
           ],
         ),
       ),

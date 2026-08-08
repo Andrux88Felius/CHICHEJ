@@ -16,7 +16,7 @@ class PromotionsPage extends StatefulWidget {
 
 class _PromotionsPageState extends State<PromotionsPage> {
   final PageController _pageController = PageController(
-    viewportFraction: 0.84,
+    viewportFraction: 0.92,
   );
 
   Timer? _timer;
@@ -409,7 +409,7 @@ class _PromotionsPageState extends State<PromotionsPage> {
     return Column(
       children: [
         SizedBox(
-          height: 390,
+          height: 430,
           child: PageView.builder(
             controller: _pageController,
             itemCount: promos.length,
@@ -429,88 +429,86 @@ class _PromotionsPageState extends State<PromotionsPage> {
                   child,
                 ) {
                   double escala = 1;
-
+  
                   if (_pageController.position.haveDimensions) {
                     final double pagina =
-                        _pageController.page ?? _paginaActual.toDouble();
-
-                    final double diferencia = (pagina - index).abs();
-
-                    escala = 1 - (diferencia * 0.10);
-
+                        _pageController.page ??
+                            _paginaActual.toDouble();
+  
+                    final double diferencia =
+                        (pagina - index).abs();
+  
+                    escala = 1 - (diferencia * 0.06);
+  
                     escala = escala.clamp(
-                      0.88,
+                      0.94,
                       1.0,
                     );
                   }
-
+  
                   return Transform.scale(
                     scale: escala,
                     child: child,
                   );
                 },
-
-                // =================================================
-                // IMAGEN COMPLETA, SIN RECORTAR
-                // =================================================
-
+  
                 child: Container(
                   margin: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 14,
+                    horizontal: 5,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(22),
                     boxShadow: const [
                       BoxShadow(
                         color: Colors.black26,
-                        blurRadius: 14,
-                        offset: Offset(0, 6),
+                        blurRadius: 16,
+                        offset: Offset(0, 7),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(22),
                     child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Positioned.fill(
-                          child: Padding(
-                            padding: const EdgeInsets.all(
-                              6,
-                            ),
-                            child: Image.asset(
-                              promos[index]['imagen']!,
-                              fit: BoxFit.contain,
-                              alignment: Alignment.center,
-                              errorBuilder: (
-                                context,
-                                error,
-                                stackTrace,
-                              ) {
-                                return Container(
-                                  color: AppColors.lilaOscuro,
-                                  alignment: Alignment.center,
-                                  child: const Icon(
-                                    Icons.local_offer,
-                                    size: 70,
-                                    color: Colors.white,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
+                        Container(
+                          color: AppColors.lilaOscuro,
                         ),
+  
+                        Image.asset(
+                          promos[index]['imagen']!,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.center,
+                          errorBuilder: (
+                            context,
+                            error,
+                            stackTrace,
+                          ) {
+                            return Container(
+                              color: AppColors.lilaOscuro,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.local_offer,
+                                size: 70,
+                                color: Colors.white,
+                              ),
+                            );
+                          },
+                        ),
+  
                         Positioned(
                           top: 14,
                           left: 14,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
+                              horizontal: 13,
                               vertical: 7,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.lilaOscuro,
+                              color: Colors.black.withValues(
+                                alpha: 0.55,
+                              ),
                               borderRadius: BorderRadius.circular(
                                 20,
                               ),
@@ -532,7 +530,9 @@ class _PromotionsPageState extends State<PromotionsPage> {
             },
           ),
         ),
-        const SizedBox(height: 5),
+  
+        const SizedBox(height: 8),
+  
         _indicadores(),
       ],
     );

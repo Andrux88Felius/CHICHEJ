@@ -6,12 +6,84 @@ import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/firestore_service.dart';
+import '../services/dispenser_service.dart';
 import '../utils/colors.dart';
 import 'cart_item.dart';
 import 'qr_payment_page.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
+
+  Future<bool> _validarUsuarioBloqueado(
+    BuildContext context,
+    UserProvider userProvider,
+  ) async {
+    // Invitados no tienen UID y no se bloquean por usuario.
+    if (userProvider.esInvitado) {
+      return true;
+    }
+
+    // Los administradores tampoco pasan por este bloqueo.
+    if (userProvider.esAdmin) {
+      return true;
+    }
+
+    final String uid = userProvider.uid?.trim() ?? '';
+
+    if (uid.isEmpty) {
+      return true;
+    }
+
+    try {
+      final DispenserService dispenserService = DispenserService();
+
+      final bool bloqueado =
+          await dispenserService.usuarioEstaBloqueado(
+        uid: uid,
+      );
+
+      if (!context.mounted) {
+        return false;
+      }
+
+      if (bloqueado) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Tu cuenta está bloqueada. '
+              'No puedes realizar nuevos pedidos.',
+            ),
+            backgroundColor: Colors.redAccent,
+            duration: Duration(seconds: 4),
+          ),
+        );
+
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      debugPrint(
+        'Error verificando bloqueo de usuario: $error',
+      );
+
+      if (!context.mounted) {
+        return false;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo verificar el estado de tu cuenta. '
+            'Inténtalo nuevamente.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+
+      return false;
+    }
+  }
 
   Future<void> _enviarMensajeWhatsApp(
     double total,
@@ -715,17 +787,31 @@ class CartPage extends StatelessWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.dorado,
                           ),
-                          onPressed: () {
+                          onPressed: () async {
                             if (esAdmin) {
                               _procesarPedidoAdmin(
                                 context,
                                 carritoProvider,
                                 userProvider,
                               );
-
+                          
                               return;
                             }
-
+                          
+                            final bool puedeComprar =
+                                await _validarUsuarioBloqueado(
+                              context,
+                              userProvider,
+                            );
+                          
+                            if (!puedeComprar) {
+                              return;
+                            }
+                          
+                            if (!context.mounted) {
+                              return;
+                            }
+                          
                             _mostrarMetodosPago(
                               context,
                               carritoProvider,
