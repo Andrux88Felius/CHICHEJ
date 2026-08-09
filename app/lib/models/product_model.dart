@@ -10,7 +10,9 @@ class Product {
   final bool esGratis;
   final String imagen;
   final int option;
+
   final bool activo;
+  final bool agotado;
 
   const Product({
     required this.productoId,
@@ -24,15 +26,17 @@ class Product {
     required this.option,
     this.esGratis = false,
     this.activo = true,
+    this.agotado = false,
   });
 
   factory Product.fromMap(
     Map<String, dynamic> map, {
     String? documentId,
   }) {
-    final productoId = map['productoId']?.toString().trim().isNotEmpty == true
-        ? map['productoId'].toString()
-        : documentId;
+    final productoId =
+        map['productoId']?.toString().trim().isNotEmpty == true
+            ? map['productoId'].toString()
+            : documentId;
 
     if (productoId == null || productoId.isEmpty) {
       throw const FormatException(
@@ -73,10 +77,12 @@ class Product {
       nombre: map['nombre']?.toString() ?? 'Producto',
       descripcion: map['descripcion']?.toString() ?? '',
       precio: precioRaw.toDouble(),
-      imagen: map['imagen']?.toString() ?? 'assets/logochichej.png',
+      imagen:
+          map['imagen']?.toString() ?? 'assets/logochichej.png',
       option: opcionRaw.toInt(),
       esGratis: map['esGratis'] == true,
       activo: map['activo'] != false,
+      agotado: map['agotado'] == true,
     );
   }
 
@@ -92,6 +98,7 @@ class Product {
     String? imagen,
     int? option,
     bool? activo,
+    bool? agotado,
   }) {
     return Product(
       productoId: productoId ?? this.productoId,
@@ -105,6 +112,7 @@ class Product {
       option: option ?? this.option,
       esGratis: esGratis ?? this.esGratis,
       activo: activo ?? this.activo,
+      agotado: agotado ?? this.agotado,
     );
   }
 
@@ -121,6 +129,7 @@ class Product {
       'opcion': option,
       'esGratis': esGratis,
       'activo': activo,
+      'agotado': agotado,
     };
   }
 }

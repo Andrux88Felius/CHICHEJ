@@ -76,6 +76,15 @@ flutter:
     - assets/qrlibre.jpeg
     - assets/icon/logo_icon2.png
     - assets/icon/logo_icon.png
+    - assets/cebada.png
+    - assets/garapiña.png
+    - assets/guarapo.png
+    - assets/linaza.png
+    - assets/mocochinchi.png
+    - assets/maserado1.jpeg
+    - assets/maserado2.jpeg
+    - assets/maserado3.jpeg
+    - assets/maserado4.jpeg
 
 flutter_launcher_icons:
   android: true

@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart' as fb_db;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'admin_products_crud.dart';
 import '../models/product_model.dart';
 import '../providers/user_provider.dart';
 import '../services/admin_service.dart';
@@ -1345,121 +1345,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   // ============================================================
 
   Widget _buildProductos() {
-    return StreamBuilder<List<Product>>(
-      stream: _productService.observarProductos(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(
-                24,
-              ),
-              child: Text(
-                'No se pudo leer el '
-                'catálogo.\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-
-        final productos = snapshot.data ?? [];
-
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text(
-              'Gestión de productos',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 5),
-            const Text(
-              'Los cambios se reflejan '
-              'en tiempo real.',
-              style: TextStyle(
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 14),
-            ...productos.map(
-              (producto) {
-                return Card(
-                  child: ListTile(
-                    leading: SizedBox(
-                      width: 50,
-                      height: 50,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                          10,
-                        ),
-                        child: Image.asset(
-                          producto.imagen,
-                          fit: BoxFit.cover,
-                          errorBuilder: (
-                            context,
-                            error,
-                            stackTrace,
-                          ) {
-                            return Container(
-                              color: Colors.grey.shade200,
-                              child: const Icon(
-                                Icons.local_drink,
-                                color: AppColors.lilaOscuro,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      producto.nombre,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${producto.cantidadMl} ml\n'
-                      '${producto.precio.toStringAsFixed(2)} Bs',
-                    ),
-                    isThreeLine: true,
-                    trailing: producto.esGratis
-                        ? const Chip(
-                            label: Text(
-                              'GRATIS',
-                            ),
-                          )
-                        : IconButton(
-                            tooltip: 'Editar precio',
-                            icon: const Icon(
-                              Icons.edit,
-                              color: AppColors.lilaOscuro,
-                            ),
-                            onPressed: () {
-                              _editarPrecio(
-                                producto,
-                              );
-                            },
-                          ),
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
+    return AdminProductsCrud(
+      productService: _productService,
+      onEditarPrecioRapido: _editarPrecio,
     );
   }
-
+  
   // ============================================================
   // MENSAJES CHICHEJ
   // ============================================================
@@ -2150,6 +2041,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'mensaje_eliminado':
         return Icons.delete;
 
+      case 'producto_creado':
+        return Icons.add_box;
+
+      case 'producto_editado':
+        return Icons.edit;
+
+      case 'producto_eliminado':
+        return Icons.delete_forever;
+
+      case 'estado_producto':
+        return Icons.inventory_2;
+
       default:
         return Icons.history;
     }
@@ -2189,6 +2092,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'mensaje_eliminado':
         return Colors.redAccent;
 
+      case 'producto_creado':
+        return Colors.green;
+
+      case 'producto_editado':
+        return AppColors.lilaOscuro;
+
+      case 'producto_eliminado':
+        return Colors.redAccent;
+
+      case 'estado_producto':
+        return Colors.orange;
+
       default:
         return Colors.grey;
     }
@@ -2227,6 +2142,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       case 'mensaje_eliminado':
         return 'Mensaje eliminado';
+
+      case 'producto_creado':
+        return 'Producto creado';
+      
+      case 'producto_editado':
+        return 'Producto editado';
+      
+      case 'producto_eliminado':
+        return 'Producto eliminado';
+      
+      case 'estado_producto':
+        return 'Estado de producto';
 
       default:
         return 'Actividad administrativa';
@@ -2337,100 +2264,130 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   margin: const EdgeInsets.only(
                     bottom: 10,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  child: ExpansionTile(
+                    key: PageStorageKey<String>(
+                      'actividad_${doc.id}',
+                    ),
+                    leading: CircleAvatar(
+                      backgroundColor: color.withValues(
+                        alpha: 0.12,
+                      ),
+                      child: Icon(
+                        _iconoAuditoria(
+                          accion,
+                        ),
+                        color: color,
+                      ),
+                    ),
+                    title: Text(
+                      _tituloAuditoria(
+                        accion,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                          backgroundColor: color.withValues(
-                            alpha: 0.12,
-                          ),
-                          child: Icon(
-                            _iconoAuditoria(
-                              accion,
-                            ),
-                            color: color,
+                        const SizedBox(height: 4),
+                        Text(
+                          descripcion,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          '$adminNombre • '
+                          '${adminRol == 'admin_principal'
+                              ? 'Admin principal'
+                              : 'Admin'}',
+                          style: const TextStyle(
+                            color: AppColors.lilaOscuro,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
                           ),
                         ),
-                        const SizedBox(
-                          width: 12,
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _tituloAuditoria(
-                                  accion,
-                                ),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 4,
-                              ),
-                              Text(
-                                descripcion,
-                                style: const TextStyle(
-                                  height: 1.3,
-                                ),
-                              ),
-                              if (valorAnterior != null ||
-                                  valorNuevo != null) ...[
-                                const SizedBox(
-                                  height: 8,
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(
-                                      10,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '$valorAnterior → $valorNuevo',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(
-                                height: 8,
-                              ),
-                              Text(
-                                '$adminNombre • '
-                                '${adminRol == 'admin_principal' ? 'Admin principal' : 'Admin'}',
-                                style: const TextStyle(
-                                  color: AppColors.lilaOscuro,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 2,
-                              ),
-                              Text(
-                                _formatearFechaActividad(
-                                  fecha,
-                                ),
-                                style: const TextStyle(
-                                  color: Colors.black45,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatearFechaActividad(
+                            fecha,
+                          ),
+                          style: const TextStyle(
+                            color: Colors.black45,
+                            fontSize: 11,
                           ),
                         ),
                       ],
                     ),
+                    childrenPadding:
+                        const EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      16,
+                    ),
+                    children: [
+                      if (valorAnterior != null ||
+                          valorNuevo != null) ...[
+                        const Divider(),
+
+                        if (valorAnterior != null) ...[
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Anterior',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '$valorAnterior',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        if (valorNuevo != null) ...[
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Resultado',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '$valorNuevo',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color:
+                                    accion == 'producto_eliminado'
+                                        ? Colors.redAccent
+                                        : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
                   ),
                 );
               },
@@ -2461,10 +2418,33 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             userProvider.esAdminPrincipal
                 ? 'Admin Principal CHICHEJ'
                 : 'Administración CHICHEJ',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           backgroundColor: AppColors.lilaOscuro,
+          foregroundColor: Colors.white,
           bottom: const TabBar(
             isScrollable: true,
+            // Pestaña seleccionada.
+            labelColor: AppColors.dorado,
+        
+            // Pestañas no seleccionadas.
+            unselectedLabelColor: Colors.white70,
+        
+            indicatorColor: AppColors.dorado,
+            indicatorWeight: 3,
+        
+            labelStyle: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+        
+            unselectedLabelStyle: TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 13,
+            ),
             tabs: [
               Tab(
                 icon: Icon(Icons.dashboard),
