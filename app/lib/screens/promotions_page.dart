@@ -567,7 +567,13 @@ class _PromotionsPageState extends State<PromotionsPage> {
 
           _carrusel(),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
+
+          if (puedeAcumular)
+            _mensajeAdministrador(),
+          
+          if (puedeAcumular)
+            const SizedBox(height: 22),
 
           if (!puedeAcumular)
             _mensajeInvitado()
@@ -810,6 +816,119 @@ class _PromotionsPageState extends State<PromotionsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _mensajeAdministrador() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('mensajes')
+          .orderBy(
+            'fechaCreacion',
+            descending: true,
+          )
+          .snapshots(),
+      builder: (
+        context,
+        snapshot,
+      ) {
+        if (!snapshot.hasData ||
+            snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        QueryDocumentSnapshot<
+            Map<String, dynamic>>? mensajeActivo;
+
+        for (final doc
+            in snapshot.data!.docs) {
+          if (doc.data()['activo'] == true) {
+            mensajeActivo = doc;
+            break;
+          }
+        }
+
+        if (mensajeActivo == null) {
+          return const SizedBox.shrink();
+        }
+
+        final data =
+            mensajeActivo.data();
+
+        final String titulo =
+            data['titulo']?.toString() ??
+                'CHICHEJ';
+
+        final String mensaje =
+            data['mensaje']?.toString() ?? '';
+
+        return Container(
+          margin: const EdgeInsets.symmetric(
+            horizontal: 16,
+          ),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                AppColors.lilaOscuro,
+                AppColors.lilaMedio,
+              ],
+            ),
+            borderRadius:
+                BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              const CircleAvatar(
+                backgroundColor:
+                    Colors.white24,
+                child: Icon(
+                  Icons.campaign,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style:
+                          const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      mensaje,
+                      style:
+                          const TextStyle(
+                        color: Colors.white,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

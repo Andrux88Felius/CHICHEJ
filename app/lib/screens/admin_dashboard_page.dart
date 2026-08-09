@@ -4,10 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart' as fb_db;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/dispenser_service.dart';
+
 import '../models/product_model.dart';
 import '../providers/user_provider.dart';
 import '../services/admin_service.dart';
+import '../services/dispenser_service.dart';
 import '../services/product_service.dart';
 import '../utils/colors.dart';
 import 'admin_user_detail_page.dart';
@@ -544,9 +545,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
-// ============================================================
-// BLOQUEAR / DESBLOQUEAR USUARIO
-// ============================================================
+  // ============================================================
+  // BLOQUEAR / DESBLOQUEAR USUARIO
+  // ============================================================
 
   Future<void> _cambiarBloqueoUsuario({
     required String uid,
@@ -562,19 +563,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           title: Row(
             children: [
               Icon(
-                nuevoEstado
-                    ? Icons.block
-                    : Icons.lock_open,
-                color: nuevoEstado
-                    ? Colors.redAccent
-                    : Colors.green,
+                nuevoEstado ? Icons.block : Icons.lock_open,
+                color: nuevoEstado ? Colors.redAccent : Colors.green,
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  nuevoEstado
-                      ? 'Bloquear usuario'
-                      : 'Desbloquear usuario',
+                  nuevoEstado ? 'Bloquear usuario' : 'Desbloquear usuario',
                 ),
               ),
             ],
@@ -582,57 +577,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           content: Text(
             nuevoEstado
                 ? '¿Deseas bloquear a $nombre?\n\n'
-                    'El usuario no podrá realizar '
-                    'nuevos pedidos hasta que vuelva '
-                    'a ser desbloqueado.'
+                    'El usuario no podrá realizar nuevos pedidos hasta que vuelva a ser desbloqueado.'
                 : '¿Deseas desbloquear a $nombre?\n\n'
-                    'El usuario podrá volver a '
-                    'realizar pedidos normalmente.',
+                    'El usuario podrá volver a realizar pedidos normalmente.',
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  false,
-                );
-              },
-              child: const Text(
-                'Cancelar',
-              ),
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: nuevoEstado
-                    ? Colors.redAccent
-                    : Colors.green,
+                backgroundColor: nuevoEstado ? Colors.redAccent : Colors.green,
                 foregroundColor: Colors.white,
               ),
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  true,
-                );
-              },
-              icon: Icon(
-                nuevoEstado
-                    ? Icons.block
-                    : Icons.lock_open,
-              ),
-              label: Text(
-                nuevoEstado
-                    ? 'Bloquear'
-                    : 'Desbloquear',
-              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: Icon(nuevoEstado ? Icons.block : Icons.lock_open),
+              label: Text(nuevoEstado ? 'Bloquear' : 'Desbloquear'),
             ),
           ],
         );
       },
     );
 
-    if (confirmar != true) {
-      return;
-    }
+    if (confirmar != true) return;
 
     try {
       await _dispenserService.bloquearUsuario(
@@ -641,44 +609,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
 
       await _registrarAuditoria(
-        accion: nuevoEstado
-            ? 'usuario_bloqueado'
-            : 'usuario_desbloqueado',
-        descripcion: nuevoEstado
-            ? 'Bloqueó a $nombre'
-            : 'Desbloqueó a $nombre',
+        accion: nuevoEstado ? 'usuario_bloqueado' : 'usuario_desbloqueado',
+        descripcion: nuevoEstado ? 'Bloqueó a $nombre' : 'Desbloqueó a $nombre',
         usuarioUid: uid,
         usuarioNombre: nombre,
         valorAnterior: bloqueadoActual,
         valorNuevo: nuevoEstado,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            nuevoEstado
-                ? '$nombre fue bloqueado.'
-                : '$nombre fue desbloqueado.',
+            nuevoEstado ? '$nombre fue bloqueado.' : '$nombre fue desbloqueado.',
           ),
-          backgroundColor: nuevoEstado
-              ? Colors.redAccent
-              : Colors.green,
+          backgroundColor: nuevoEstado ? Colors.redAccent : Colors.green,
         ),
       );
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'No se pudo cambiar el estado del usuario: $error',
-          ),
+          content: Text('No se pudo cambiar el estado del usuario: $error'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -1152,13 +1106,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
             final bool esSubAdmin = rol == 'admin';
 
-            final bool estaBloqueado =
-                usuario['bloqueado'] == true;
+            final bool estaBloqueado = usuario['bloqueado'] == true;
 
             final bool puedeCambiarBloqueo =
                 userProvider.esAdminPrincipal &&
-                !esPropioUsuario &&
-                !esPrincipal;
+                    !esPropioUsuario &&
+                    !esPrincipal;
 
             final bool puedeCambiarRol = userProvider.esAdminPrincipal &&
                 !esPropioUsuario &&
@@ -1179,6 +1132,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 bottom: 12,
               ),
               child: ExpansionTile(
+                key: PageStorageKey<String>('usuario_$uid'),
                 leading: _avatarUsuario(
                   usuario,
                 ),
@@ -1213,28 +1167,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 3),
-
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          estaBloqueado
-                              ? Icons.block
-                              : Icons.check_circle,
+                          estaBloqueado ? Icons.block : Icons.check_circle,
                           size: 15,
-                          color: estaBloqueado
-                              ? Colors.redAccent
-                              : Colors.green,
+                          color: estaBloqueado ? Colors.redAccent : Colors.green,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          estaBloqueado
-                              ? 'BLOQUEADO'
-                              : 'ACTIVO',
+                          estaBloqueado ? 'BLOQUEADO' : 'ACTIVO',
                           style: TextStyle(
-                            color: estaBloqueado
-                                ? Colors.redAccent
-                                : Colors.green,
+                            color: estaBloqueado ? Colors.redAccent : Colors.green,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1317,42 +1262,36 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ),
                   ),
                   if (puedeCambiarBloqueo) ...[
-                     const SizedBox(
-                       height: 8,
-                     ),
-                     SizedBox(
-                       width: double.infinity,
-                       child: OutlinedButton.icon(
-                         style: OutlinedButton.styleFrom(
-                           foregroundColor: estaBloqueado
-                               ? Colors.green
-                               : Colors.redAccent,
-                           side: BorderSide(
-                             color: estaBloqueado
-                                 ? Colors.green
-                                 : Colors.redAccent,
-                           ),
-                         ),
-                         onPressed: () {
-                           _cambiarBloqueoUsuario(
-                             uid: uid,
-                             nombre: nombre,
-                             bloqueadoActual: estaBloqueado,
-                           );
-                         },
-                         icon: Icon(
-                           estaBloqueado
-                               ? Icons.lock_open
-                               : Icons.block,
-                         ),
-                         label: Text(
-                           estaBloqueado
-                               ? 'Desbloquear usuario'
-                               : 'Bloquear usuario',
-                         ),
-                       ),
-                     ),
-]                   ,
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor:
+                              estaBloqueado ? Colors.green : Colors.redAccent,
+                          side: BorderSide(
+                            color:
+                                estaBloqueado ? Colors.green : Colors.redAccent,
+                          ),
+                        ),
+                        onPressed: () {
+                          _cambiarBloqueoUsuario(
+                            uid: uid,
+                            nombre: nombre,
+                            bloqueadoActual: estaBloqueado,
+                          );
+                        },
+                        icon: Icon(
+                          estaBloqueado ? Icons.lock_open : Icons.block,
+                        ),
+                        label: Text(
+                          estaBloqueado
+                              ? 'Desbloquear usuario'
+                              : 'Bloquear usuario',
+                        ),
+                      ),
+                    ),
+                  ],
                   if (puedeCambiarRol) ...[
                     const SizedBox(
                       height: 8,
@@ -1522,6 +1461,640 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   // ============================================================
+  // MENSAJES CHICHEJ
+  // ============================================================
+
+  Future<void> _crearMensajeGeneral(
+    UserProvider userProvider,
+  ) async {
+    String tituloTexto = '';
+    String mensajeTexto = '';
+
+    final Map<String, String>? resultado =
+        await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(
+                Icons.campaign,
+                color: AppColors.lilaOscuro,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Nuevo mensaje CHICHEJ',
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  maxLength: 60,
+                  decoration: const InputDecoration(
+                    labelText: 'Título',
+                    hintText: 'Ej. Promoción especial',
+                    prefixIcon: Icon(
+                      Icons.title,
+                    ),
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    tituloTexto = value;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  maxLength: 300,
+                  minLines: 4,
+                  maxLines: 7,
+                  decoration: const InputDecoration(
+                    labelText: 'Mensaje',
+                    hintText:
+                        'Escribe el aviso para los usuarios...',
+                    alignLabelWithHint: true,
+                    prefixIcon: Icon(
+                      Icons.message,
+                    ),
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    mensajeTexto = value;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'Cancelar',
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.lilaOscuro,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final String titulo =
+                    tituloTexto.trim();
+
+                final String mensaje =
+                    mensajeTexto.trim();
+
+                if (titulo.isEmpty ||
+                    mensaje.isEmpty) {
+                  ScaffoldMessenger.of(
+                    dialogContext,
+                  ).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Completa el título y el mensaje.',
+                      ),
+                    ),
+                  );
+
+                  return;
+                }
+
+                Navigator.pop(
+                  dialogContext,
+                  {
+                    'titulo': titulo,
+                    'mensaje': mensaje,
+                  },
+                );
+              },
+              icon: const Icon(
+                Icons.send,
+              ),
+              label: const Text(
+                'Publicar',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (resultado == null) {
+      return;
+    }
+
+    final String titulo =
+        resultado['titulo'] ?? '';
+
+    final String mensaje =
+        resultado['mensaje'] ?? '';
+
+    try {
+      final String mensajeId =
+          await _adminService.crearMensaje(
+        titulo: titulo,
+        mensaje: mensaje,
+        creadoPorUid:
+            userProvider.uid ?? '',
+        creadoPorNombre:
+            userProvider.user?.nombre ??
+                'Administrador principal',
+      );
+
+      await _registrarAuditoria(
+        accion: 'mensaje_publicado',
+        descripcion:
+            'Publicó el mensaje "$titulo"',
+        valorNuevo: mensajeId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Mensaje publicado correctamente.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No se pudo publicar el mensaje: $error',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+  
+  Future<void> _cambiarEstadoMensaje({
+    required String mensajeId,
+    required String titulo,
+    required bool activoActual,
+  }) async {
+    final bool nuevoEstado = !activoActual;
+
+    try {
+      await _adminService.cambiarEstadoMensaje(
+        mensajeId: mensajeId,
+        activo: nuevoEstado,
+      );
+
+      await _registrarAuditoria(
+        accion: nuevoEstado ? 'mensaje_activado' : 'mensaje_desactivado',
+        descripcion: nuevoEstado
+            ? 'Activó el mensaje "$titulo"'
+            : 'Desactivó el mensaje "$titulo"',
+        valorAnterior: activoActual,
+        valorNuevo: nuevoEstado,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(nuevoEstado ? 'Mensaje activado.' : 'Mensaje desactivado.'),
+          backgroundColor: nuevoEstado ? Colors.green : Colors.orange,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo cambiar el estado: $error'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _editarMensaje({
+    required String mensajeId,
+    required String tituloActual,
+    required String mensajeActual,
+  }) async {
+    String tituloTexto = tituloActual;
+    String mensajeTexto = mensajeActual;
+
+    final Map<String, String>? resultado =
+        await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(
+                Icons.edit,
+                color: AppColors.lilaOscuro,
+              ),
+              SizedBox(width: 10),
+              Text(
+                'Editar mensaje',
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  initialValue: tituloActual,
+                  maxLength: 60,
+                  decoration: const InputDecoration(
+                    labelText: 'Título',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    tituloTexto = value;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: mensajeActual,
+                  maxLength: 300,
+                  minLines: 4,
+                  maxLines: 7,
+                  decoration: const InputDecoration(
+                    labelText: 'Mensaje',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    mensajeTexto = value;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                );
+              },
+              child: const Text(
+                'Cancelar',
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    AppColors.lilaOscuro,
+                foregroundColor:
+                    Colors.white,
+              ),
+              onPressed: () {
+                final titulo =
+                    tituloTexto.trim();
+
+                final mensaje =
+                    mensajeTexto.trim();
+
+                if (titulo.isEmpty ||
+                    mensaje.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(
+                  dialogContext,
+                  {
+                    'titulo': titulo,
+                    'mensaje': mensaje,
+                  },
+                );
+              },
+              icon: const Icon(
+                Icons.save,
+              ),
+              label: const Text(
+                'Guardar',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (resultado == null) {
+      return;
+    }
+
+    try {
+      await _adminService.editarMensaje(
+        mensajeId: mensajeId,
+        titulo: resultado['titulo']!,
+        mensaje: resultado['mensaje']!,
+      );
+
+      await _registrarAuditoria(
+        accion: 'mensaje_editado',
+        descripcion:
+            'Editó el mensaje "$tituloActual"',
+        valorAnterior: tituloActual,
+        valorNuevo: resultado['titulo'],
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Mensaje actualizado correctamente.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No se pudo editar: $error',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _eliminarMensaje({
+    required String mensajeId,
+    required String titulo,
+  }) async {
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar mensaje'),
+          content: Text('¿Eliminar definitivamente "$titulo"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      await _adminService.eliminarMensaje(mensajeId: mensajeId);
+
+      await _registrarAuditoria(
+        accion: 'mensaje_eliminado',
+        descripcion: 'Eliminó el mensaje "$titulo"',
+        valorAnterior: titulo,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mensaje eliminado.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo eliminar: $error'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Widget _buildMensajes(
+    UserProvider userProvider,
+  ) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _adminService.observarMensajes(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'No se pudieron cargar los mensajes.\n${snapshot.error}',
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data!.docs;
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Mensajes CHICHEJ',
+                    style: TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (userProvider.esAdminPrincipal)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.lilaOscuro,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => _crearMensajeGeneral(userProvider),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Nuevo'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              userProvider.esAdminPrincipal
+                  ? 'Publica avisos para todos los usuarios.'
+                  : 'Consulta los mensajes publicados.',
+              style: const TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            if (docs.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(25),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.notifications_none,
+                        size: 55,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'Todavía no hay mensajes publicados.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ...docs.map((doc) {
+              final data = doc.data();
+              final String titulo = data['titulo']?.toString() ?? 'Sin título';
+              final String mensaje = data['mensaje']?.toString() ?? '';
+              final bool activo = data['activo'] == true;
+              final String autor =
+                  data['creadoPorNombre']?.toString() ?? 'Administrador';
+              final Timestamp? fecha = data['fechaCreacion'] is Timestamp
+                  ? data['fechaCreacion'] as Timestamp
+                  : null;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(15),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: activo
+                                ? AppColors.lilaOscuro.withValues(alpha: 0.12)
+                                : Colors.grey.shade200,
+                            child: Icon(
+                              activo ? Icons.campaign : Icons.notifications_off,
+                              color: activo ? AppColors.lilaOscuro : Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              titulo,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Chip(
+                            label: Text(activo ? 'ACTIVO' : 'INACTIVO'),
+                            backgroundColor: activo
+                                ? Colors.green.shade50
+                                : Colors.grey.shade200,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(mensaje, style: const TextStyle(height: 1.35)),
+                      const SizedBox(height: 12),
+                      Text(
+                        fecha == null
+                            ? autor
+                            : '$autor • ${_formatearFechaActividad(fecha)}',
+                        style: const TextStyle(
+                          color: Colors.black45,
+                          fontSize: 11,
+                        ),
+                      ),
+                      if (userProvider.esAdminPrincipal) ...[
+                        const Divider(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  _cambiarEstadoMensaje(
+                                    mensajeId: doc.id,
+                                    titulo: titulo,
+                                    activoActual: activo,
+                                  );
+                                },
+                                icon: Icon(
+                                  activo ? Icons.visibility_off : Icons.visibility,
+                                ),
+                                label: Text(
+                                  activo ? 'Desactivar' : 'Activar',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Editar mensaje',
+                              color: AppColors.lilaOscuro,
+                              onPressed: () {
+                                _editarMensaje(
+                                  mensajeId: doc.id,
+                                  tituloActual: titulo,
+                                  mensajeActual: mensaje,
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.edit,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Eliminar mensaje',
+                              color: Colors.redAccent,
+                              onPressed: () {
+                                _eliminarMensaje(
+                                  mensajeId: doc.id,
+                                  titulo: titulo,
+                                );
+                              },
+                              icon: const Icon(Icons.delete),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+
+  // ============================================================
   // ACTIVIDAD / AUDITORIA
   // ============================================================
 
@@ -1562,6 +2135,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'usuario_desbloqueado':
         return Icons.lock_open;
 
+      case 'mensaje_publicado':
+        return Icons.campaign;
+
+      case 'mensaje_activado':
+        return Icons.visibility;
+
+      case 'mensaje_desactivado':
+        return Icons.visibility_off;
+
+      case 'mensaje_editado':
+        return Icons.edit_note;
+
+      case 'mensaje_eliminado':
+        return Icons.delete;
+
       default:
         return Icons.history;
     }
@@ -1586,6 +2174,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'usuario_desbloqueado':
         return Colors.green;
 
+      case 'mensaje_publicado':
+        return AppColors.lilaOscuro;
+
+      case 'mensaje_activado':
+        return Colors.green;
+
+      case 'mensaje_desactivado':
+        return Colors.orange;
+
+      case 'mensaje_editado':
+        return AppColors.lilaOscuro;
+
+      case 'mensaje_eliminado':
+        return Colors.redAccent;
+
       default:
         return Colors.grey;
     }
@@ -1606,9 +2209,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       case 'usuario_bloqueado':
         return 'Usuario bloqueado';
-      
+
       case 'usuario_desbloqueado':
         return 'Usuario desbloqueado';
+
+      case 'mensaje_publicado':
+        return 'Mensaje publicado';
+
+      case 'mensaje_activado':
+        return 'Mensaje activado';
+
+      case 'mensaje_desactivado':
+        return 'Mensaje desactivado';
+
+      case 'mensaje_editado':
+        return 'Mensaje editado';
+
+      case 'mensaje_eliminado':
+        return 'Mensaje eliminado';
 
       default:
         return 'Actividad administrativa';
@@ -1836,7 +2454,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -1861,6 +2479,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 text: 'Productos',
               ),
               Tab(
+                icon: Icon(Icons.campaign),
+                text: 'Mensajes',
+              ),
+              Tab(
                 icon: Icon(Icons.history),
                 text: 'Actividad',
               ),
@@ -1878,6 +2500,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               userProvider,
             ),
             _buildProductos(),
+            _buildMensajes(
+              userProvider,
+            ),
             _buildActividad(),
             const DispenserAdminPage(),
           ],

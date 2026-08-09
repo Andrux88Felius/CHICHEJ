@@ -216,10 +216,46 @@ class AdminService {
       'fechaActualizacion': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<void> editarMensaje({
+    required String mensajeId,
+    required String titulo,
+    required String mensaje,
+  }) async {
+    final String tituloLimpio =
+        titulo.trim();
+  
+    final String mensajeLimpio =
+        mensaje.trim();
+  
+    if (tituloLimpio.isEmpty) {
+      throw ArgumentError(
+        'El título no puede estar vacío.',
+      );
+    }
+  
+    if (mensajeLimpio.isEmpty) {
+      throw ArgumentError(
+        'El mensaje no puede estar vacío.',
+      );
+    }
+  
+    await _firestore
+        .collection('mensajes')
+        .doc(mensajeId)
+        .update({
+      'titulo': tituloLimpio,
+      'mensaje': mensajeLimpio,
+      'fechaActualizacion':
+          FieldValue.serverTimestamp(),
+    });
+  }
   
   Future<void> eliminarMensaje({
     required String mensajeId,
   }) async {
     await _firestore.collection('mensajes').doc(mensajeId).delete();
   }
+
+  
 }
