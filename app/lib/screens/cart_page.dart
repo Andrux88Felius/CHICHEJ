@@ -6,6 +6,7 @@ import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/firestore_service.dart';
+import '../services/order_ticket_service.dart';
 import '../services/dispenser_service.dart';
 import '../utils/colors.dart';
 import 'cart_item.dart';
@@ -177,6 +178,8 @@ class CartPage extends StatelessWidget {
         estadoPago: 'no_requerido',
       );
 
+      OrderTicketService.instance.watchOrder(pedidoId);
+
       if (!context.mounted) {
         return;
       }
@@ -322,6 +325,8 @@ class CartPage extends StatelessWidget {
 
       return;
     }
+
+    OrderTicketService.instance.watchOrder(pedidoId);
 
     // Desde este punto el pedido YA existe.
     // No debemos devolver una muestra aunque
@@ -478,6 +483,8 @@ class CartPage extends StatelessWidget {
 
       return;
     }
+
+    OrderTicketService.instance.watchOrder(pedidoId);
 
     if (!context.mounted) {
       return;

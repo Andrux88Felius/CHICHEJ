@@ -66,11 +66,20 @@ class FirestoreService {
       'total': total,
       'metodoPago': metodoPago,
       'estadoPago': estadoPago,
+
+      // Estado del pedido
       'estado': 'pendiente',
       'procesado': false,
+
+      // Fechas del flujo
       'fechaCreacion': FieldValue.serverTimestamp(),
       'fechaProcesado': null,
       'fechaEntregado': null,
+
+      // Estado del ticket MX06
+      'ticketImpreso': false,
+      'fechaImpresion': null,
+      'intentosImpresion': 0,
     });
 
     return pedidoRef.id;
@@ -104,5 +113,37 @@ class FirestoreService {
     await _db.collection('pedidos').doc(pedidoId).update({
       'estadoPago': estadoPago,
     });
+  }
+
+  // ============================================================
+  // TICKET MX06
+  // ============================================================
+
+  Future<void> marcarTicketImpreso({
+    required String pedidoId,
+  }) async {
+    await _db.collection('pedidos').doc(pedidoId).update({
+      'ticketImpreso': true,
+      'fechaImpresion': FieldValue.serverTimestamp(),
+      'intentosImpresion': FieldValue.increment(1),
+    });
+  }
+
+  Future<void> registrarIntentoImpresionFallido({
+    required String pedidoId,
+  }) async {
+    await _db.collection('pedidos').doc(pedidoId).update({
+      'ticketImpreso': false,
+      'intentosImpresion': FieldValue.increment(1),
+    });
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> observarPedido(
+    String pedidoId,
+  ) {
+    return _db
+        .collection('pedidos')
+        .doc(pedidoId)
+        .snapshots();
   }
 }
