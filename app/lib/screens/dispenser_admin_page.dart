@@ -1,8 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import '../services/order_ticket_service.dart';
 import '../providers/user_provider.dart';
 import '../services/dispenser_service.dart';
 import '../utils/colors.dart';
@@ -128,7 +128,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
         return 'Invitado';
 
       case 'maquina':
-        return 'Máquina';
+        return 'MÃ¡quina';
 
       case 'registrado':
       case 'cliente':
@@ -145,13 +145,13 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
 
     switch (origen) {
       case 'boton_fisico':
-        return 'Botón físico';
+        return 'BotÃ³n fÃ­sico';
 
       case 'admin_app':
-        return 'Aplicación Admin';
+        return 'AplicaciÃ³n Admin';
 
       case 'app':
-        return 'Aplicación';
+        return 'AplicaciÃ³n';
 
       default:
         break;
@@ -160,10 +160,10 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
     final String tipo = pedido['tipoUsuario']?.toString().toLowerCase() ?? '';
 
     if (tipo == 'maquina') {
-      return 'Máquina';
+      return 'MÃ¡quina';
     }
 
-    return 'Aplicación';
+    return 'AplicaciÃ³n';
   }
 
   String? _uidPedido(Map<String, dynamic> pedido) {
@@ -237,13 +237,13 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
       final int cantidad = (item['cantidad'] as num?)?.toInt() ?? 1;
 
       if (cantidad > 1) {
-        partes.add('$nombre ×$cantidad');
+        partes.add('$nombre Ã—$cantidad');
       } else {
         partes.add(nombre);
       }
     }
 
-    return partes.isEmpty ? 'Sin detalle' : partes.join(' • ');
+    return partes.isEmpty ? 'Sin detalle' : partes.join(' â€¢ ');
   }
 
   // ============================================================
@@ -341,7 +341,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             'Cancelar pedido',
           ),
           content: Text(
-            '¿Cancelar el pedido de '
+            'Â¿Cancelar el pedido de '
             '${_nombreUsuario(pedido)}?\n\n'
             '${_resumenItems(pedido)}',
           ),
@@ -446,9 +446,9 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             'Bloquear usuario',
           ),
           content: Text(
-            '¿Bloquear a $nombre?\n\n'
-            'El usuario quedará marcado como '
-            'bloqueado y no deberá poder generar '
+            'Â¿Bloquear a $nombre?\n\n'
+            'El usuario quedarÃ¡ marcado como '
+            'bloqueado y no deberÃ¡ poder generar '
             'nuevos pedidos.',
           ),
           actions: [
@@ -519,7 +519,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
   }
 
   // ============================================================
-  // ESTADO MÁQUINA
+  // ESTADO MÃQUINA
   // ============================================================
 
   Widget _estadoMaquina() {
@@ -528,7 +528,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _cardError(
-            'Telemetría temporalmente no disponible.',
+            'TelemetrÃ­a temporalmente no disponible.',
           );
         }
 
@@ -536,7 +536,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
 
         final Map<String, dynamic> maquina = _mapSeguro(valor);
 
-        final String estado = maquina['estado']?.toString() ?? 'Sin telemetría';
+        final String estado = maquina['estado']?.toString() ?? 'Sin telemetrÃ­a';
 
         final String bebida = maquina['bebidaNombre']?.toString() ??
             maquina['productoactual']?.toString() ??
@@ -585,7 +585,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                           Text(
                             tieneDatos
                                 ? 'Datos disponibles'
-                                : 'Esperando telemetría ESP32',
+                                : 'Esperando telemetrÃ­a ESP32',
                             style: TextStyle(
                               color: tieneDatos ? Colors.green : Colors.grey,
                             ),
@@ -705,13 +705,13 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                 ),
               ),
               title: const Text(
-                'Máquina disponible',
+                'MÃ¡quina disponible',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               subtitle: const Text(
-                'No hay pedidos procesándose.',
+                'No hay pedidos procesÃ¡ndose.',
               ),
             ),
           );
@@ -764,7 +764,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                 const SizedBox(height: 5),
                 Text(
                   '${_cantidadTotalUnidades(data)} '
-                  'dispensación(es)',
+                  'dispensaciÃ³n(es)',
                   style: const TextStyle(
                     color: Colors.black54,
                   ),
@@ -848,7 +848,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
               children: [
                 const Expanded(
                   child: Text(
-                    'Cola de dispensación',
+                    'Cola de dispensaciÃ³n',
                     style: TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.bold,
@@ -920,8 +920,8 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                             Expanded(
                               child: Text(
                                 '${_tipoUsuarioTexto(data)}'
-                                ' • ${_origenPedido(data)}'
-                                ' • ${_fechaTexto(data)}',
+                                ' â€¢ ${_origenPedido(data)}'
+                                ' â€¢ ${_fechaTexto(data)}',
                                 style: const TextStyle(
                                   fontSize: 11,
                                 ),
@@ -998,6 +998,109 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
     );
   }
 
+  Future<void> _reimprimirComprobante(
+    BuildContext context,
+    String pedidoId,
+    Map<String, dynamic> data,
+  ) async {
+    final String nombre = _nombreUsuario(data);
+
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(
+                Icons.print,
+                color: Colors.deepPurple,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Reimprimir comprobante',
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Â¿Deseas volver a imprimir el comprobante '
+            'del pedido de $nombre?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancelar',
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              icon: const Icon(
+                Icons.print,
+              ),
+              label: const Text(
+                'Reimprimir',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) {
+      return;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Conectando con la impresora MX06...',
+        ),
+        duration: Duration(
+          seconds: 2,
+        ),
+      ),
+    );
+
+    final bool resultado =
+        await OrderTicketService.instance.reprintOrder(
+      pedidoId,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          resultado
+              ? 'Comprobante enviado a la MX06.'
+              : 'No se pudo reimprimir el comprobante.',
+        ),
+        backgroundColor:
+            resultado ? Colors.green : Colors.redAccent,
+      ),
+    );
+  }
+
   // ============================================================
   // ACTIVIDAD RECIENTE
   // ============================================================
@@ -1024,9 +1127,11 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
         final docs = snapshot.data!.docs
             .where(
               (doc) {
-                final String estado = doc.data()['estado']?.toString() ?? '';
+                final String estado =
+                    doc.data()['estado']?.toString() ?? '';
 
-                return estado == 'entregado' || estado == 'cancelado';
+                return estado == 'entregado' ||
+                    estado == 'cancelado';
               },
             )
             .take(8)
@@ -1047,45 +1152,151 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
               ),
             ),
             const SizedBox(height: 10),
+
             ...docs.map(
               (doc) {
                 final data = doc.data();
 
                 final String estado =
-                    data['estado']?.toString() ?? 'desconocido';
+                    data['estado']
+                        ?.toString()
+                        .trim()
+                        .toLowerCase() ??
+                    'desconocido';
 
-                final Color color = _colorEstado(estado);
+                final String tipoUsuario =
+                    data['tipoUsuario']
+                        ?.toString()
+                        .trim()
+                        .toLowerCase() ??
+                    '';
+
+                final bool ticketImpreso =
+                    data['ticketImpreso'] == true;
+
+                final bool puedeReimprimir =
+                    estado == 'entregado' &&
+                        tipoUsuario != 'admin';
+
+                final Color color =
+                    _colorEstado(
+                  estado,
+                );
 
                 return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: color.withValues(
-                        alpha: 0.12,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              color.withValues(
+                            alpha: 0.12,
+                          ),
+                          child: Icon(
+                            _iconoEstado(
+                              estado,
+                            ),
+                            color: color,
+                          ),
+                        ),
+                        title: Text(
+                          _nombreUsuario(
+                            data,
+                          ),
+                          style: const TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${_resumenItems(data)}\n'
+                          '${_fechaTexto(data)}',
+                        ),
+                        isThreeLine: true,
+                        trailing: Text(
+                          estado.toUpperCase(),
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 11,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      child: Icon(
-                        _iconoEstado(estado),
-                        color: color,
-                      ),
-                    ),
-                    title: Text(
-                      _nombreUsuario(data),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${_resumenItems(data)}\n'
-                      '${_fechaTexto(data)}',
-                    ),
-                    isThreeLine: true,
-                    trailing: Text(
-                      estado.toUpperCase(),
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+
+                      if (puedeReimprimir) ...[
+                        const Divider(
+                          height: 1,
+                        ),
+
+                        Padding(
+                          padding:
+                              const EdgeInsets.fromLTRB(
+                            12,
+                            6,
+                            12,
+                            8,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      ticketImpreso
+                                          ? Icons
+                                              .check_circle_outline
+                                          : Icons
+                                              .error_outline,
+                                      size: 17,
+                                      color: ticketImpreso
+                                          ? Colors.green
+                                          : Colors.orange,
+                                    ),
+                                    const SizedBox(
+                                      width: 5,
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        ticketImpreso
+                                            ? 'Comprobante impreso'
+                                            : 'Comprobante pendiente',
+                                        style:
+                                            TextStyle(
+                                          fontSize: 12,
+                                          color: ticketImpreso
+                                              ? Colors.green
+                                              : Colors.orange,
+                                          fontWeight:
+                                              FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              TextButton.icon(
+                                onPressed: () {
+                                  _reimprimirComprobante(
+                                    context,
+                                    doc.id,
+                                    data,
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.print_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Reimprimir',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 );
               },
@@ -1128,7 +1339,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
 
     final bool esAdminPrincipal = rol == 'admin_principal';
 
-    // No usamos Scaffold/AppBar aquí porque esta pantalla
+    // No usamos Scaffold/AppBar aquÃ­ porque esta pantalla
     // vive dentro del TabBar del panel administrativo.
     return ColoredBox(
       color: Colors.grey.shade100,
@@ -1144,7 +1355,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
           padding: const EdgeInsets.all(16),
           children: [
             const Text(
-              'Estado de la máquina',
+              'Estado de la mÃ¡quina',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -1154,7 +1365,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             _estadoMaquina(),
             const SizedBox(height: 22),
             const Text(
-              'Estado de dispensación',
+              'Estado de dispensaciÃ³n',
               style: TextStyle(
                 fontSize: 21,
                 fontWeight: FontWeight.bold,
