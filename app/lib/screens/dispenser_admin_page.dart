@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -128,7 +128,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
         return 'Invitado';
 
       case 'maquina':
-        return 'MÃ¡quina';
+        return 'Máquina';
 
       case 'registrado':
       case 'cliente':
@@ -145,13 +145,13 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
 
     switch (origen) {
       case 'boton_fisico':
-        return 'BotÃ³n fÃ­sico';
+        return 'Botón físico';
 
       case 'admin_app':
-        return 'AplicaciÃ³n Admin';
+        return 'Aplicación Admin';
 
       case 'app':
-        return 'AplicaciÃ³n';
+        return 'Aplicación';
 
       default:
         break;
@@ -160,10 +160,10 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
     final String tipo = pedido['tipoUsuario']?.toString().toLowerCase() ?? '';
 
     if (tipo == 'maquina') {
-      return 'MÃ¡quina';
+      return 'Máquina';
     }
 
-    return 'AplicaciÃ³n';
+    return 'Aplicación';
   }
 
   String? _uidPedido(Map<String, dynamic> pedido) {
@@ -237,13 +237,13 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
       final int cantidad = (item['cantidad'] as num?)?.toInt() ?? 1;
 
       if (cantidad > 1) {
-        partes.add('$nombre Ã—$cantidad');
+        partes.add('$nombre ×$cantidad');
       } else {
         partes.add(nombre);
       }
     }
 
-    return partes.isEmpty ? 'Sin detalle' : partes.join(' â€¢ ');
+    return partes.isEmpty ? 'Sin detalle' : partes.join(' • ');
   }
 
   // ============================================================
@@ -341,7 +341,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             'Cancelar pedido',
           ),
           content: Text(
-            'Â¿Cancelar el pedido de '
+            '¿Cancelar el pedido de '
             '${_nombreUsuario(pedido)}?\n\n'
             '${_resumenItems(pedido)}',
           ),
@@ -446,9 +446,9 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             'Bloquear usuario',
           ),
           content: Text(
-            'Â¿Bloquear a $nombre?\n\n'
-            'El usuario quedarÃ¡ marcado como '
-            'bloqueado y no deberÃ¡ poder generar '
+            '¿Bloquear a $nombre?\n\n'
+            'El usuario quedará marcado como '
+            'bloqueado y no deberá poder generar '
             'nuevos pedidos.',
           ),
           actions: [
@@ -519,7 +519,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
   }
 
   // ============================================================
-  // ESTADO MÃQUINA
+  // ESTADO MÁQUINA
   // ============================================================
 
   Widget _estadoMaquina() {
@@ -528,7 +528,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _cardError(
-            'TelemetrÃ­a temporalmente no disponible.',
+            'Telemetría temporalmente no disponible.',
           );
         }
 
@@ -536,7 +536,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
 
         final Map<String, dynamic> maquina = _mapSeguro(valor);
 
-        final String estado = maquina['estado']?.toString() ?? 'Sin telemetrÃ­a';
+        final String estado = maquina['estado']?.toString() ?? 'Sin telemetría';
 
         final String bebida = maquina['bebidaNombre']?.toString() ??
             maquina['productoactual']?.toString() ??
@@ -585,7 +585,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                           Text(
                             tieneDatos
                                 ? 'Datos disponibles'
-                                : 'Esperando telemetrÃ­a ESP32',
+                                : 'Esperando telemetría ESP32',
                             style: TextStyle(
                               color: tieneDatos ? Colors.green : Colors.grey,
                             ),
@@ -705,13 +705,13 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                 ),
               ),
               title: const Text(
-                'MÃ¡quina disponible',
+                'Máquina disponible',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               subtitle: const Text(
-                'No hay pedidos procesÃ¡ndose.',
+                'No hay pedidos procesándose.',
               ),
             ),
           );
@@ -764,7 +764,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                 const SizedBox(height: 5),
                 Text(
                   '${_cantidadTotalUnidades(data)} '
-                  'dispensaciÃ³n(es)',
+                  'dispensación(es)',
                   style: const TextStyle(
                     color: Colors.black54,
                   ),
@@ -848,7 +848,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
               children: [
                 const Expanded(
                   child: Text(
-                    'Cola de dispensaciÃ³n',
+                    'Cola de dispensación',
                     style: TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.bold,
@@ -920,8 +920,8 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                             Expanded(
                               child: Text(
                                 '${_tipoUsuarioTexto(data)}'
-                                ' â€¢ ${_origenPedido(data)}'
-                                ' â€¢ ${_fechaTexto(data)}',
+                                ' • ${_origenPedido(data)}'
+                                ' • ${_fechaTexto(data)}',
                                 style: const TextStyle(
                                   fontSize: 11,
                                 ),
@@ -1024,7 +1024,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             ],
           ),
           content: Text(
-            'Â¿Deseas volver a imprimir el comprobante '
+            '¿Deseas volver a imprimir el comprobante '
             'del pedido de $nombre?',
           ),
           actions: [
@@ -1077,8 +1077,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
       ),
     );
 
-    final bool resultado =
-        await OrderTicketService.instance.reprintOrder(
+    final bool resultado = await OrderTicketService.instance.reprintOrder(
       pedidoId,
     );
 
@@ -1095,8 +1094,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
               ? 'Comprobante enviado a la MX06.'
               : 'No se pudo reimprimir el comprobante.',
         ),
-        backgroundColor:
-            resultado ? Colors.green : Colors.redAccent,
+        backgroundColor: resultado ? Colors.green : Colors.redAccent,
       ),
     );
   }
@@ -1127,11 +1125,9 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
         final docs = snapshot.data!.docs
             .where(
               (doc) {
-                final String estado =
-                    doc.data()['estado']?.toString() ?? '';
+                final String estado = doc.data()['estado']?.toString() ?? '';
 
-                return estado == 'entregado' ||
-                    estado == 'cancelado';
+                return estado == 'entregado' || estado == 'cancelado';
               },
             )
             .take(8)
@@ -1152,34 +1148,23 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
               ),
             ),
             const SizedBox(height: 10),
-
             ...docs.map(
               (doc) {
                 final data = doc.data();
 
                 final String estado =
-                    data['estado']
-                        ?.toString()
-                        .trim()
-                        .toLowerCase() ??
-                    'desconocido';
+                    data['estado']?.toString().trim().toLowerCase() ??
+                        'desconocido';
 
                 final String tipoUsuario =
-                    data['tipoUsuario']
-                        ?.toString()
-                        .trim()
-                        .toLowerCase() ??
-                    '';
+                    data['tipoUsuario']?.toString().trim().toLowerCase() ?? '';
 
-                final bool ticketImpreso =
-                    data['ticketImpreso'] == true;
+                final bool ticketImpreso = data['ticketImpreso'] == true;
 
                 final bool puedeReimprimir =
-                    estado == 'entregado' &&
-                        tipoUsuario != 'admin';
+                    estado == 'entregado' && tipoUsuario != 'admin';
 
-                final Color color =
-                    _colorEstado(
+                final Color color = _colorEstado(
                   estado,
                 );
 
@@ -1188,8 +1173,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                     children: [
                       ListTile(
                         leading: CircleAvatar(
-                          backgroundColor:
-                              color.withValues(
+                          backgroundColor: color.withValues(
                             alpha: 0.12,
                           ),
                           child: Icon(
@@ -1204,8 +1188,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                             data,
                           ),
                           style: const TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         subtitle: Text(
@@ -1218,20 +1201,16 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                           style: TextStyle(
                             color: color,
                             fontSize: 11,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-
                       if (puedeReimprimir) ...[
                         const Divider(
                           height: 1,
                         ),
-
                         Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(
+                          padding: const EdgeInsets.fromLTRB(
                             12,
                             6,
                             12,
@@ -1244,10 +1223,8 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                                   children: [
                                     Icon(
                                       ticketImpreso
-                                          ? Icons
-                                              .check_circle_outline
-                                          : Icons
-                                              .error_outline,
+                                          ? Icons.check_circle_outline
+                                          : Icons.error_outline,
                                       size: 17,
                                       color: ticketImpreso
                                           ? Colors.green
@@ -1261,21 +1238,18 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                                         ticketImpreso
                                             ? 'Comprobante impreso'
                                             : 'Comprobante pendiente',
-                                        style:
-                                            TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
                                           color: ticketImpreso
                                               ? Colors.green
                                               : Colors.orange,
-                                          fontWeight:
-                                              FontWeight.w500,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-
                               TextButton.icon(
                                 onPressed: () {
                                   _reimprimirComprobante(
@@ -1339,7 +1313,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
 
     final bool esAdminPrincipal = rol == 'admin_principal';
 
-    // No usamos Scaffold/AppBar aquÃ­ porque esta pantalla
+    // No usamos Scaffold/AppBar aquí porque esta pantalla
     // vive dentro del TabBar del panel administrativo.
     return ColoredBox(
       color: Colors.grey.shade100,
@@ -1355,7 +1329,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
           padding: const EdgeInsets.all(16),
           children: [
             const Text(
-              'Estado de la mÃ¡quina',
+              'Estado de la máquina',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -1365,7 +1339,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             _estadoMaquina(),
             const SizedBox(height: 22),
             const Text(
-              'Estado de dispensaciÃ³n',
+              'Estado de dispensación',
               style: TextStyle(
                 fontSize: 21,
                 fontWeight: FontWeight.bold,

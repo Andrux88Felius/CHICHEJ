@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dispenser_admin_page.dart';
+import 'admin_reports_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart' as fb_db;
 import 'package:flutter/material.dart';
@@ -26,16 +27,43 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final DispenserService _dispenserService = DispenserService();
 
   StreamSubscription<fb_db.DatabaseEvent>? _usuariosSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _pedidosSubscription;
 
   List<Map<String, dynamic>> _usuariosCache = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _pedidosCache = [];
 
   bool _cargandoUsuarios = true;
   Object? _errorUsuarios;
+  bool _cargandoPedidos = true;
+  Object? _errorPedidos;
 
   @override
   void initState() {
     super.initState();
+    _iniciarEscuchaPedidos();
     _iniciarEscuchaUsuarios();
+  }
+
+  void _iniciarEscuchaPedidos() {
+    _pedidosSubscription = _adminService.observarPedidos().listen(
+      (snapshot) {
+        if (!mounted) return;
+
+        setState(() {
+          _pedidosCache = snapshot.docs;
+          _cargandoPedidos = false;
+          _errorPedidos = null;
+        });
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+
+        setState(() {
+          _errorPedidos = error;
+          _cargandoPedidos = false;
+        });
+      },
+    );
   }
 
   void _iniciarEscuchaUsuarios() {
@@ -62,6 +90,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   void dispose() {
+    _pedidosSubscription?.cancel();
     _usuariosSubscription?.cancel();
     super.dispose();
   }
@@ -622,7 +651,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            nuevoEstado ? '$nombre fue bloqueado.' : '$nombre fue desbloqueado.',
+            nuevoEstado
+                ? '$nombre fue bloqueado.'
+                : '$nombre fue desbloqueado.',
           ),
           backgroundColor: nuevoEstado ? Colors.redAccent : Colors.green,
         ),
@@ -751,198 +782,192 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   // ============================================================
 
   Widget _buildResumen() {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _adminService.observarPedidos(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Error leyendo pedidos:\n'
-                '${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
+    if (_errorPedidos != null && _pedidosCache.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Error leyendo pedidos:\n$_errorPedidos',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
 
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
+    if (_cargandoPedidos && _pedidosCache.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
 
-        final docs = snapshot.data!.docs;
+    final docs = _pedidosCache;
 
-        int pedidosTotales = 0;
-        int pedidosEntregados = 0;
-        int mlRegistrados = 0;
-        double ventas = 0;
+    int pedidosTotales = 0;
+    int pedidosEntregados = 0;
+    int mlRegistrados = 0;
+    double ventas = 0;
 
-        final Map<String, int> productosVendidos = {};
+    final Map<String, int> productosVendidos = {};
 
-        final Map<String, int> metodosPago = {};
+    final Map<String, int> metodosPago = {};
 
-        for (final doc in docs) {
-          final data = doc.data();
+    for (final doc in docs) {
+      final data = doc.data();
 
-          pedidosTotales++;
+      pedidosTotales++;
 
-          final String estado = data['estado']?.toString() ?? '';
+      final String estado = data['estado']?.toString() ?? '';
 
-          if (estado == 'entregado') {
-            pedidosEntregados++;
-          }
+      if (estado == 'entregado') {
+        pedidosEntregados++;
+      }
 
-          mlRegistrados += (data['cantidadTotalMl'] as num?)?.toInt() ?? 0;
+      mlRegistrados += (data['cantidadTotalMl'] as num?)?.toInt() ?? 0;
 
-          final String estadoPago = data['estadoPago']?.toString() ?? '';
+      final String estadoPago = data['estadoPago']?.toString() ?? '';
 
-          if (estadoPago == 'aprobado') {
-            ventas += (data['total'] as num?)?.toDouble() ?? 0;
-          }
+      if (estadoPago == 'aprobado') {
+        ventas += (data['total'] as num?)?.toDouble() ?? 0;
+      }
 
-          final String metodoPago =
-              data['metodoPago']?.toString().toLowerCase() ?? 'desconocido';
+      final String metodoPago =
+          data['metodoPago']?.toString().toLowerCase() ?? 'desconocido';
 
-          metodosPago[metodoPago] = (metodosPago[metodoPago] ?? 0) + 1;
+      metodosPago[metodoPago] = (metodosPago[metodoPago] ?? 0) + 1;
 
-          final dynamic items = data['items'];
+      final dynamic items = data['items'];
 
-          if (items is List) {
-            for (final dynamic item in items) {
-              if (item is Map) {
-                final String nombre = item['nombre']?.toString() ?? 'Producto';
+      if (items is List) {
+        for (final dynamic item in items) {
+          if (item is Map) {
+            final String nombre = item['nombre']?.toString() ?? 'Producto';
 
-                final int cantidad = (item['cantidad'] as num?)?.toInt() ?? 1;
+            final int cantidad = (item['cantidad'] as num?)?.toInt() ?? 1;
 
-                productosVendidos[nombre] =
-                    (productosVendidos[nombre] ?? 0) + cantidad;
-              }
-            }
+            productosVendidos[nombre] =
+                (productosVendidos[nombre] ?? 0) + cantidad;
           }
         }
+      }
+    }
 
-        String productoMasPedido = 'Sin datos';
+    String productoMasPedido = 'Sin datos';
 
-        int cantidadMasPedida = 0;
+    int cantidadMasPedida = 0;
 
-        productosVendidos.forEach(
-          (producto, cantidad) {
-            if (cantidad > cantidadMasPedida) {
-              cantidadMasPedida = cantidad;
+    productosVendidos.forEach(
+      (producto, cantidad) {
+        if (cantidad > cantidadMasPedida) {
+          cantidadMasPedida = cantidad;
 
-              productoMasPedido = producto;
-            }
-          },
-        );
+          productoMasPedido = producto;
+        }
+      },
+    );
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Resumen general',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.15,
           children: [
-            const Text(
-              'Resumen general',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+            _tarjetaEstadistica(
+              titulo: 'Pedidos',
+              valor: '$pedidosTotales',
+              icono: Icons.receipt_long,
             ),
-            const SizedBox(height: 16),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.15,
-              children: [
-                _tarjetaEstadistica(
-                  titulo: 'Pedidos',
-                  valor: '$pedidosTotales',
-                  icono: Icons.receipt_long,
-                ),
-                _tarjetaEstadistica(
-                  titulo: 'Ventas',
-                  valor: '${ventas.toStringAsFixed(2)} Bs',
-                  icono: Icons.monetization_on,
-                ),
-                _tarjetaEstadistica(
-                  titulo: 'Entregados',
-                  valor: '$pedidosEntregados',
-                  icono: Icons.check_circle,
-                ),
-                _tarjetaEstadistica(
-                  titulo: 'Dispensado',
-                  valor: '$mlRegistrados ml',
-                  icono: Icons.local_drink,
-                ),
-              ],
+            _tarjetaEstadistica(
+              titulo: 'Ventas',
+              valor: '${ventas.toStringAsFixed(2)} Bs',
+              icono: Icons.monetization_on,
             ),
-            const SizedBox(height: 22),
-            Card(
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: AppColors.lilaOscuro,
-                  child: Icon(
-                    Icons.star,
-                    color: Colors.white,
-                  ),
-                ),
-                title: const Text(
-                  'Producto más solicitado',
-                ),
-                subtitle: Text(
-                  '$productoMasPedido\n'
-                  '$cantidadMasPedida unidades',
-                ),
-                isThreeLine: true,
-              ),
+            _tarjetaEstadistica(
+              titulo: 'Entregados',
+              valor: '$pedidosEntregados',
+              icono: Icons.check_circle,
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Métodos de pago',
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ...metodosPago.entries.map(
-              (entry) {
-                IconData icono;
-
-                if (entry.key == 'qr') {
-                  icono = Icons.qr_code;
-                } else if (entry.key == 'efectivo') {
-                  icono = Icons.money;
-                } else {
-                  icono = Icons.admin_panel_settings;
-                }
-
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      icono,
-                      color: AppColors.lilaOscuro,
-                    ),
-                    title: Text(
-                      entry.key.toUpperCase(),
-                    ),
-                    trailing: Text(
-                      '${entry.value}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                );
-              },
+            _tarjetaEstadistica(
+              titulo: 'Dispensado',
+              valor: '$mlRegistrados ml',
+              icono: Icons.local_drink,
             ),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 22),
+        Card(
+          child: ListTile(
+            leading: const CircleAvatar(
+              backgroundColor: AppColors.lilaOscuro,
+              child: Icon(
+                Icons.star,
+                color: Colors.white,
+              ),
+            ),
+            title: const Text(
+              'Producto más solicitado',
+            ),
+            subtitle: Text(
+              '$productoMasPedido\n'
+              '$cantidadMasPedida unidades',
+            ),
+            isThreeLine: true,
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Métodos de pago',
+          style: TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...metodosPago.entries.map(
+          (entry) {
+            IconData icono;
+
+            if (entry.key == 'qr') {
+              icono = Icons.qr_code;
+            } else if (entry.key == 'efectivo') {
+              icono = Icons.money;
+            } else {
+              icono = Icons.admin_panel_settings;
+            }
+
+            return Card(
+              child: ListTile(
+                leading: Icon(
+                  icono,
+                  color: AppColors.lilaOscuro,
+                ),
+                title: Text(
+                  entry.key.toUpperCase(),
+                ),
+                trailing: Text(
+                  '${entry.value}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -1108,10 +1133,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
             final bool estaBloqueado = usuario['bloqueado'] == true;
 
-            final bool puedeCambiarBloqueo =
-                userProvider.esAdminPrincipal &&
-                    !esPropioUsuario &&
-                    !esPrincipal;
+            final bool puedeCambiarBloqueo = userProvider.esAdminPrincipal &&
+                !esPropioUsuario &&
+                !esPrincipal;
 
             final bool puedeCambiarRol = userProvider.esAdminPrincipal &&
                 !esPropioUsuario &&
@@ -1173,13 +1197,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         Icon(
                           estaBloqueado ? Icons.block : Icons.check_circle,
                           size: 15,
-                          color: estaBloqueado ? Colors.redAccent : Colors.green,
+                          color:
+                              estaBloqueado ? Colors.redAccent : Colors.green,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           estaBloqueado ? 'BLOQUEADO' : 'ACTIVO',
                           style: TextStyle(
-                            color: estaBloqueado ? Colors.redAccent : Colors.green,
+                            color:
+                                estaBloqueado ? Colors.redAccent : Colors.green,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1350,7 +1376,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       onEditarPrecioRapido: _editarPrecio,
     );
   }
-  
+
   // ============================================================
   // MENSAJES CHICHEJ
   // ============================================================
@@ -1405,8 +1431,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   maxLines: 7,
                   decoration: const InputDecoration(
                     labelText: 'Mensaje',
-                    hintText:
-                        'Escribe el aviso para los usuarios...',
+                    hintText: 'Escribe el aviso para los usuarios...',
                     alignLabelWithHint: true,
                     prefixIcon: Icon(
                       Icons.message,
@@ -1435,14 +1460,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () {
-                final String titulo =
-                    tituloTexto.trim();
+                final String titulo = tituloTexto.trim();
 
-                final String mensaje =
-                    mensajeTexto.trim();
+                final String mensaje = mensajeTexto.trim();
 
-                if (titulo.isEmpty ||
-                    mensaje.isEmpty) {
+                if (titulo.isEmpty || mensaje.isEmpty) {
                   ScaffoldMessenger.of(
                     dialogContext,
                   ).showSnackBar(
@@ -1480,28 +1502,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       return;
     }
 
-    final String titulo =
-        resultado['titulo'] ?? '';
+    final String titulo = resultado['titulo'] ?? '';
 
-    final String mensaje =
-        resultado['mensaje'] ?? '';
+    final String mensaje = resultado['mensaje'] ?? '';
 
     try {
-      final String mensajeId =
-          await _adminService.crearMensaje(
+      final String mensajeId = await _adminService.crearMensaje(
         titulo: titulo,
         mensaje: mensaje,
-        creadoPorUid:
-            userProvider.uid ?? '',
-        creadoPorNombre:
-            userProvider.user?.nombre ??
-                'Administrador principal',
+        creadoPorUid: userProvider.uid ?? '',
+        creadoPorNombre: userProvider.user?.nombre ?? 'Administrador principal',
       );
 
       await _registrarAuditoria(
         accion: 'mensaje_publicado',
-        descripcion:
-            'Publicó el mensaje "$titulo"',
+        descripcion: 'Publicó el mensaje "$titulo"',
         valorNuevo: mensajeId,
       );
 
@@ -1532,7 +1547,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
     }
   }
-  
+
   Future<void> _cambiarEstadoMensaje({
     required String mensajeId,
     required String titulo,
@@ -1559,7 +1574,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(nuevoEstado ? 'Mensaje activado.' : 'Mensaje desactivado.'),
+          content:
+              Text(nuevoEstado ? 'Mensaje activado.' : 'Mensaje desactivado.'),
           backgroundColor: nuevoEstado ? Colors.green : Colors.orange,
         ),
       );
@@ -1646,20 +1662,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    AppColors.lilaOscuro,
-                foregroundColor:
-                    Colors.white,
+                backgroundColor: AppColors.lilaOscuro,
+                foregroundColor: Colors.white,
               ),
               onPressed: () {
-                final titulo =
-                    tituloTexto.trim();
+                final titulo = tituloTexto.trim();
 
-                final mensaje =
-                    mensajeTexto.trim();
+                final mensaje = mensajeTexto.trim();
 
-                if (titulo.isEmpty ||
-                    mensaje.isEmpty) {
+                if (titulo.isEmpty || mensaje.isEmpty) {
                   return;
                 }
 
@@ -1696,8 +1707,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       await _registrarAuditoria(
         accion: 'mensaje_editado',
-        descripcion:
-            'Editó el mensaje "$tituloActual"',
+        descripcion: 'Editó el mensaje "$tituloActual"',
         valorAnterior: tituloActual,
         valorNuevo: resultado['titulo'],
       );
@@ -1891,7 +1901,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 : Colors.grey.shade200,
                             child: Icon(
                               activo ? Icons.campaign : Icons.notifications_off,
-                              color: activo ? AppColors.lilaOscuro : Colors.grey,
+                              color:
+                                  activo ? AppColors.lilaOscuro : Colors.grey,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -1938,7 +1949,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                   );
                                 },
                                 icon: Icon(
-                                  activo ? Icons.visibility_off : Icons.visibility,
+                                  activo
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
                                 ),
                                 label: Text(
                                   activo ? 'Desactivar' : 'Activar',
@@ -2145,13 +2158,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       case 'producto_creado':
         return 'Producto creado';
-      
+
       case 'producto_editado':
         return 'Producto editado';
-      
+
       case 'producto_eliminado':
         return 'Producto eliminado';
-      
+
       case 'estado_producto':
         return 'Estado de producto';
 
@@ -2289,8 +2302,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                     subtitle: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 4),
                         Text(
@@ -2301,9 +2313,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         const SizedBox(height: 7),
                         Text(
                           '$adminNombre • '
-                          '${adminRol == 'admin_principal'
-                              ? 'Admin principal'
-                              : 'Admin'}',
+                          '${adminRol == 'admin_principal' ? 'Admin principal' : 'Admin'}',
                           style: const TextStyle(
                             color: AppColors.lilaOscuro,
                             fontWeight: FontWeight.w600,
@@ -2322,18 +2332,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         ),
                       ],
                     ),
-                    childrenPadding:
-                        const EdgeInsets.fromLTRB(
+                    childrenPadding: const EdgeInsets.fromLTRB(
                       16,
                       0,
                       16,
                       16,
                     ),
                     children: [
-                      if (valorAnterior != null ||
-                          valorNuevo != null) ...[
+                      if (valorAnterior != null || valorNuevo != null) ...[
                         const Divider(),
-
                         if (valorAnterior != null) ...[
                           const Align(
                             alignment: Alignment.centerLeft,
@@ -2358,7 +2365,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           ),
                           const SizedBox(height: 12),
                         ],
-
                         if (valorNuevo != null) ...[
                           const Align(
                             alignment: Alignment.centerLeft,
@@ -2378,10 +2384,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               '$valorNuevo',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color:
-                                    accion == 'producto_eliminado'
-                                        ? Colors.redAccent
-                                        : Colors.black87,
+                                color: accion == 'producto_eliminado'
+                                    ? Colors.redAccent
+                                    : Colors.black87,
                               ),
                             ),
                           ),
@@ -2411,17 +2416,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
 
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
             userProvider.esAdminPrincipal
                 ? 'Admin Principal CHICHEJ'
                 : 'Administración CHICHEJ',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           backgroundColor: AppColors.lilaOscuro,
           foregroundColor: Colors.white,
@@ -2429,18 +2434,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             isScrollable: true,
             // Pestaña seleccionada.
             labelColor: AppColors.dorado,
-        
+
             // Pestañas no seleccionadas.
             unselectedLabelColor: Colors.white70,
-        
+
             indicatorColor: AppColors.dorado,
             indicatorWeight: 3,
-        
+
             labelStyle: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 13,
             ),
-        
+
             unselectedLabelStyle: TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 13,
@@ -2467,6 +2472,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 text: 'Actividad',
               ),
               Tab(
+                icon: Icon(Icons.picture_as_pdf),
+                text: 'Reportes',
+              ),
+              Tab(
                 icon: Icon(Icons.precision_manufacturing),
                 text: 'Máquina',
               ),
@@ -2484,6 +2493,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               userProvider,
             ),
             _buildActividad(),
+            AdminReportsPage(
+              pedidos: _pedidosCache,
+              cargando: _cargandoPedidos,
+              error: _errorPedidos,
+            ),
             const DispenserAdminPage(),
           ],
         ),

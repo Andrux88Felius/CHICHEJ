@@ -23,6 +23,9 @@ dependencies:
   url_launcher: ^6.3.2
   gal: ^2.3.0
   flutter_blue_plus: ^2.3.12
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -34,6 +37,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/logo-chichej.png
     - assets/logochichej.png
     - assets/pedidos.png
     - assets/150ml.png

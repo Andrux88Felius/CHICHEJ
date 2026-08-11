@@ -9,6 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_blue_plus_winrt
   gal
   permission_handler_windows
+  printing
   url_launcher_windows
 )
 
