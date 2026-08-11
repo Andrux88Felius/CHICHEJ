@@ -1,18 +1,17 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // Importante
 import 'package:provider/provider.dart';
+
+import 'firebase_options.dart';
 import 'providers/cart_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/user_provider.dart';
 import 'screens/login_page.dart';
-import 'firebase_options.dart'; // Importa la configuración de Firebasej
+import 'services/order_ticket_service.dart';
 
-// 1. Es necesario marcar main como async
-void main() async {
-  // 2. Vincula los widgets de Flutter con el motor de ejecución
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 3. Inicializa Firebase antes de arrancar la app
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -20,28 +19,56 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => CartProvider()),
-        ChangeNotifierProvider(create: (_) => OrderProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => OrderProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => UserProvider(),
+        ),
       ],
       child: const MyApp(),
     ),
   );
+
+  // ------------------------------------------------------------
+  // RECUPERACIÓN DE TICKETS MX06
+  //
+  // CHICHEJ inicia normalmente.
+  // Dos segundos después revisa si existe algún pedido
+  // entregado cuyo comprobante todavía no fue impreso.
+  //
+  // Esto NO bloquea el inicio de la aplicación.
+  // ------------------------------------------------------------
+
+  Future.delayed(
+    const Duration(seconds: 2),
+    () async {
+      await OrderTicketService.instance
+          .recoverPendingTickets();
+    },
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({
+    super.key,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ChiChej',
       theme: ThemeData(
-        primarySwatch: Colors.deepPurple, // Ajusta a tus colores
+        primarySwatch: Colors.deepPurple,
         useMaterial3: true,
       ),
-      home: LoginPage(),
+      home: const LoginPage(),
     );
   }
 }

@@ -79,7 +79,6 @@ class OrderTicketService {
           return;
         }
 
-        // Solo un intento automático por pedido.
         if (_automaticAttemptedOrders.contains(pedidoId)) {
           return;
         }
@@ -300,9 +299,7 @@ class OrderTicketService {
             .registrarIntentoImpresionFallido(
           pedidoId: pedidoId,
         );
-      } catch (_) {
-        // No interferimos con el pedido.
-      }
+      } catch (_) {}
 
       await stopWatching(
         pedidoId,
@@ -353,6 +350,76 @@ class OrderTicketService {
       );
 
       return false;
+    }
+  }
+
+  Future<void> recoverPendingTickets() async {
+    try {
+      debugPrint(
+        '[OrderTicketService] Buscando tickets pendientes...',
+      );
+
+      final snapshot = await _db
+          .collection('pedidos')
+          .where('estado', isEqualTo: 'entregado')
+          .where('ticketImpreso', isEqualTo: false)
+          .limit(10)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        debugPrint(
+          '[OrderTicketService] No existen tickets pendientes.',
+        );
+        return;
+      }
+
+      debugPrint(
+        '[OrderTicketService] '
+        'Tickets pendientes encontrados: ${snapshot.docs.length}',
+      );
+
+      for (final document in snapshot.docs) {
+        final data = document.data();
+
+        final String tipoUsuario =
+            data['tipoUsuario']
+                ?.toString()
+                .trim()
+                .toLowerCase() ??
+            '';
+
+        if (tipoUsuario == 'admin') {
+          debugPrint(
+            '[OrderTicketService] '
+            'Pedido administrativo ${document.id}: '
+            'no requiere ticket.',
+          );
+
+          continue;
+        }
+
+        final pedidoId = document.id;
+
+        if (_automaticAttemptedOrders.contains(pedidoId)) {
+          continue;
+        }
+
+        _automaticAttemptedOrders.add(pedidoId);
+
+        await _printDeliveredOrder(
+          pedidoId: pedidoId,
+          data: data,
+        );
+
+        await Future.delayed(
+          const Duration(milliseconds: 500),
+        );
+      }
+    } catch (error) {
+      debugPrint(
+        '[OrderTicketService] '
+        'Error recuperando tickets pendientes: $error',
+      );
     }
   }
 

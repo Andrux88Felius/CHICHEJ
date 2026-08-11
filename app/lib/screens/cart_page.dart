@@ -178,8 +178,6 @@ class CartPage extends StatelessWidget {
         estadoPago: 'no_requerido',
       );
 
-      OrderTicketService.instance.watchOrder(pedidoId);
-
       if (!context.mounted) {
         return;
       }
