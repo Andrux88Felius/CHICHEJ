@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/user_provider.dart';
+import '../services/music_service.dart';
+import '../utils/colors.dart';
 import 'admin_dashboard_page.dart';
 import 'history_page.dart';
 import 'home_page.dart';
@@ -46,8 +48,7 @@ class _MainNavigationState extends State<MainNavigation> {
         snapshot,
       ) {
         final bool hayMensajeActivo =
-            snapshot.hasData &&
-            snapshot.data!.docs.isNotEmpty;
+            snapshot.hasData && snapshot.data!.docs.isNotEmpty;
 
         return SizedBox(
           width: 30,
@@ -62,7 +63,6 @@ class _MainNavigationState extends State<MainNavigation> {
                   ),
                 ),
               ),
-
               if (hayMensajeActivo)
                 Positioned(
                   top: -3,
@@ -95,8 +95,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    final UserProvider userProvider =
-        Provider.of<UserProvider>(context);
+    final UserProvider userProvider = Provider.of<UserProvider>(context);
 
     final bool esAdmin = userProvider.esAdmin;
     final bool esInvitado = userProvider.esInvitado;
@@ -105,16 +104,14 @@ class _MainNavigationState extends State<MainNavigation> {
       const HomePage(),
 
       // El invitado no tendrá historial personal.
-      if (!esInvitado)
-        const HistoryPage(),
+      if (!esInvitado) const HistoryPage(),
 
       const PromotionsPage(),
 
       const ProfilePage(),
 
       // Panel administrativo exclusivo.
-      if (esAdmin)
-        const AdminDashboardPage(),
+      if (esAdmin) const AdminDashboardPage(),
     ];
 
     final List<BottomNavigationBarItem> items = [
@@ -124,7 +121,6 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         label: 'Inicio',
       ),
-
       if (!esInvitado)
         const BottomNavigationBarItem(
           icon: Icon(
@@ -132,21 +128,18 @@ class _MainNavigationState extends State<MainNavigation> {
           ),
           label: 'Historial',
         ),
-
       BottomNavigationBarItem(
         icon: _iconoPromociones(
           mostrarAlerta: !esInvitado,
         ),
         label: 'Promos',
       ),
-
       const BottomNavigationBarItem(
         icon: Icon(
           Icons.person,
         ),
         label: 'Perfil',
       ),
-
       if (esAdmin)
         const BottomNavigationBarItem(
           icon: Icon(
@@ -166,6 +159,20 @@ class _MainNavigationState extends State<MainNavigation> {
       body: IndexedStack(
         index: currentIndex,
         children: paginas,
+      ),
+      floatingActionButton: Consumer<MusicService>(
+        builder: (context, musicService, _) {
+          return FloatingActionButton.small(
+            heroTag: 'chichej_music_toggle',
+            tooltip: musicService.enabled ? 'Sonido OFF' : 'Sonido ON',
+            backgroundColor: AppColors.turquesa,
+            foregroundColor: Colors.white,
+            onPressed: musicService.toggleEnabled,
+            child: Icon(
+              musicService.enabled ? Icons.volume_up : Icons.volume_off,
+            ),
+          );
+        },
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,

@@ -6,15 +6,12 @@ import 'firebase_options.dart';
 import 'providers/cart_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/user_provider.dart';
-import 'screens/login_page.dart';
+import 'screens/splash_page.dart';
+import 'services/music_service.dart';
 import 'services/order_ticket_service.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
   runApp(
     MultiProvider(
@@ -28,9 +25,18 @@ Future<void> main() async {
         ChangeNotifierProvider(
           create: (_) => UserProvider(),
         ),
+        ChangeNotifierProvider(
+          create: (_) => MusicService(),
+        ),
       ],
       child: const MyApp(),
     ),
+  );
+}
+
+Future<void> _initializeApplication() async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
   );
 
   // ------------------------------------------------------------
@@ -43,11 +49,10 @@ Future<void> main() async {
   // Esto NO bloquea el inicio de la aplicación.
   // ------------------------------------------------------------
 
-  Future.delayed(
+  Future<void>.delayed(
     const Duration(seconds: 2),
     () async {
-      await OrderTicketService.instance
-          .recoverPendingTickets();
+      await OrderTicketService.instance.recoverPendingTickets();
     },
   );
 }
@@ -68,7 +73,9 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.deepPurple,
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      home: const SplashPage(
+        onInitialize: _initializeApplication,
+      ),
     );
   }
 }

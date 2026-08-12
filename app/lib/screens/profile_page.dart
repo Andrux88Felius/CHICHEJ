@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
+import '../services/music_service.dart';
 import '../utils/colors.dart';
 import 'chichej_info_page.dart';
 import 'event_order_page.dart' as event_page;
@@ -156,11 +157,14 @@ class _ProfilePageState extends State<ProfilePage> {
   ) async {
     final OrderProvider orderProvider =
         Provider.of<OrderProvider>(context, listen: false);
+    final MusicService musicService =
+        Provider.of<MusicService>(context, listen: false);
 
     orderProvider.limpiarSesion();
+    await musicService.clearSession();
     await userProvider.logout();
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     Navigator.pushAndRemoveUntil(
       context,
@@ -218,7 +222,10 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           IconButton(
             tooltip: 'Información de CHICHEJ',
-            icon: const Icon(Icons.info_outline),
+            icon: const Icon(
+              Icons.info_outline,
+              color: AppColors.turquesa,
+            ),
             onPressed: () {
               Navigator.push(
                 context,

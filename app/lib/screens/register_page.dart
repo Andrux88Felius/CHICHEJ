@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
+import '../services/music_service.dart';
 import '../utils/colors.dart';
 import 'main_navigation.dart';
 
@@ -109,10 +110,16 @@ class _RegisterPageState extends State<RegisterPage> {
       final UserProvider userProvider =
           Provider.of<UserProvider>(context, listen: false);
 
+      final MusicService musicService =
+          Provider.of<MusicService>(context, listen: false);
+
       // Evita que el nuevo usuario herede datos temporales
       // de una sesión invitada o anterior.
       orderProvider.limpiarSesion();
       userProvider.setUser(usuario);
+      await musicService.activateUser(uid);
+
+      if (!mounted) return;
 
       Navigator.pushAndRemoveUntil(
         context,

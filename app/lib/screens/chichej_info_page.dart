@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/music_service.dart';
 import '../utils/colors.dart';
 
 class ChichejInfoPage extends StatelessWidget {
@@ -28,29 +30,28 @@ class ChichejInfoPage extends StatelessWidget {
       return;
     }
 
+    final uri = Uri.parse(url);
+    var abierto = false;
+
     try {
-      final uri = Uri.parse(url);
-      final disponible = await canLaunchUrl(uri);
-
-      if (!disponible) {
-        if (context.mounted) {
-          _mostrarMensaje(context, 'No se pudo abrir el enlace.');
-        }
-        return;
-      }
-
-      final abierto = await launchUrl(
+      abierto = await launchUrl(
         uri,
         mode: LaunchMode.externalApplication,
       );
-
-      if (!abierto && context.mounted) {
-        _mostrarMensaje(context, 'No se pudo abrir el enlace.');
-      }
     } catch (_) {
-      if (context.mounted) {
-        _mostrarMensaje(context, 'Ocurrió un problema al abrir el enlace.');
+      abierto = false;
+    }
+
+    if (!abierto) {
+      try {
+        abierto = await launchUrl(uri, mode: LaunchMode.platformDefault);
+      } catch (_) {
+        abierto = false;
       }
+    }
+
+    if (!abierto && context.mounted) {
+      _mostrarMensaje(context, 'No se pudo abrir el enlace.');
     }
   }
 
@@ -75,7 +76,7 @@ class ChichejInfoPage extends StatelessWidget {
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xfff5f0f8),
+              Color(0xffe9f7f5),
               Colors.white,
             ],
             begin: Alignment.topCenter,
@@ -101,7 +102,7 @@ class ChichejInfoPage extends StatelessWidget {
                   'CHICHEJ',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppColors.lilaOscuro,
+                    color: Color(0xff00796b),
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
@@ -140,6 +141,8 @@ class ChichejInfoPage extends StatelessWidget {
                     style: TextStyle(fontSize: 15, height: 1.5),
                   ),
                 ),
+                const SizedBox(height: 18),
+                _musicSection(),
                 const SizedBox(height: 18),
                 _seccion(
                   titulo: 'SÍGUENOS Y CONTÁCTANOS',
@@ -222,7 +225,7 @@ class ChichejInfoPage extends StatelessWidget {
                   '© 2026 CHICHEJ',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.black54,
+                    color: Color(0xff00796b),
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -244,7 +247,7 @@ class ChichejInfoPage extends StatelessWidget {
       color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xffe2d2eb)),
+        side: const BorderSide(color: Color(0xffb2dfdb)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -303,6 +306,62 @@ class ChichejInfoPage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _musicSection() {
+    return Consumer<MusicService>(
+      builder: (context, musicService, _) {
+        return _seccion(
+          titulo: 'MÚSICA AMBIENTAL',
+          contenido: Column(
+            children: [
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  musicService.enabled ? 'Sonido ON' : 'Sonido OFF',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  musicService.enabled
+                      ? 'Reproduciendo: ${musicService.currentTrackName}'
+                      : 'La música está pausada.',
+                ),
+                value: musicService.enabled,
+                activeThumbColor: AppColors.turquesa,
+                onChanged: musicService.setEnabled,
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<MusicSelection>(
+                key: ValueKey(musicService.selection),
+                initialValue: musicService.selection,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Selección de canción',
+                  prefixIcon: Icon(
+                    Icons.music_note,
+                    color: AppColors.turquesa,
+                  ),
+                  border: OutlineInputBorder(),
+                ),
+                items: MusicSelection.values
+                    .map(
+                      (selection) => DropdownMenuItem(
+                        value: selection,
+                        child: Text(musicService.labelFor(selection)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (selection) {
+                  if (selection != null) {
+                    musicService.select(selection);
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

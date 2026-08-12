@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
+import '../services/music_service.dart';
 import '../utils/colors.dart';
 import 'main_navigation.dart';
 import 'register_page.dart';
@@ -120,12 +121,16 @@ class _LoginPageState extends State<LoginPage> {
       final UserProvider userProvider =
           Provider.of<UserProvider>(context, listen: false);
 
+      final MusicService musicService =
+          Provider.of<MusicService>(context, listen: false);
+
       // Evita que el historial temporal de una sesión anterior
       // aparezca en la cuenta que acaba de iniciar sesión.
       orderProvider.limpiarSesion();
 
       // UserProvider vuelve a imponer el avatar oficial si es administrador.
       userProvider.setUser(usuario);
+      await musicService.activateUser(uid);
 
       debugPrint('-------------------------');
       debugPrint('UID: ${usuario.uid}');
@@ -227,12 +232,16 @@ class _LoginPageState extends State<LoginPage> {
       final UserProvider userProvider =
           Provider.of<UserProvider>(context, listen: false);
 
+      final MusicService musicService =
+          Provider.of<MusicService>(context, listen: false);
+
       // Elimina información temporal de la sesión anterior.
       orderProvider.limpiarSesion();
 
       // Cierra cualquier sesión de Firebase activa y crea/reutiliza
       // el identificador local persistente del invitado.
       await userProvider.iniciarSesionInvitada();
+      await musicService.startGuestSession();
 
       if (!mounted) return;
 
