@@ -11,8 +11,11 @@ import '../providers/user_provider.dart';
 import '../services/admin_service.dart';
 import '../services/dispenser_service.dart';
 import '../services/product_service.dart';
+import '../services/report_service.dart';
 import '../utils/colors.dart';
 import 'admin_user_detail_page.dart';
+
+enum _PeriodoResumen { general, dia, mes, anio }
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -25,6 +28,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final ProductService _productService = ProductService();
   final AdminService _adminService = AdminService();
   final DispenserService _dispenserService = DispenserService();
+  final ReportService _reportService = const ReportService();
 
   StreamSubscription<fb_db.DatabaseEvent>? _usuariosSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _pedidosSubscription;
@@ -36,6 +40,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Object? _errorUsuarios;
   bool _cargandoPedidos = true;
   Object? _errorPedidos;
+  _PeriodoResumen _periodoResumen = _PeriodoResumen.general;
 
   @override
   void initState() {
@@ -192,6 +197,88 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
       ),
     );
+  }
+
+  SalesReportSummary _crearResumenSeleccionado() {
+    if (_periodoResumen == _PeriodoResumen.general) {
+      return _reportService.crearResumenGeneral(documentos: _pedidosCache);
+    }
+
+    final ahora = DateTime.now();
+    late final DateTime inicio;
+    late final DateTime finExclusivo;
+
+    switch (_periodoResumen) {
+      case _PeriodoResumen.dia:
+        inicio = DateTime(ahora.year, ahora.month, ahora.day);
+        finExclusivo = inicio.add(const Duration(days: 1));
+        break;
+      case _PeriodoResumen.mes:
+        inicio = DateTime(ahora.year, ahora.month);
+        finExclusivo = DateTime(ahora.year, ahora.month + 1);
+        break;
+      case _PeriodoResumen.anio:
+        inicio = DateTime(ahora.year);
+        finExclusivo = DateTime(ahora.year + 1);
+        break;
+      case _PeriodoResumen.general:
+        throw StateError('El período general no requiere límites.');
+    }
+
+    return _reportService.crearResumenEntre(
+      documentos: _pedidosCache,
+      inicio: inicio,
+      finExclusivo: finExclusivo,
+    );
+  }
+
+  String _etiquetaPeriodo(_PeriodoResumen periodo) {
+    switch (periodo) {
+      case _PeriodoResumen.general:
+        return 'General';
+      case _PeriodoResumen.dia:
+        return 'Día';
+      case _PeriodoResumen.mes:
+        return 'Mes';
+      case _PeriodoResumen.anio:
+        return 'Año';
+    }
+  }
+
+  String _descripcionPeriodoActivo() {
+    final ahora = DateTime.now();
+    switch (_periodoResumen) {
+      case _PeriodoResumen.general:
+        return 'Histórico completo';
+      case _PeriodoResumen.dia:
+        return 'Hoy · ${_dosDigitos(ahora.day)}/'
+            '${_dosDigitos(ahora.month)}/${ahora.year}';
+      case _PeriodoResumen.mes:
+        const meses = [
+          'Enero',
+          'Febrero',
+          'Marzo',
+          'Abril',
+          'Mayo',
+          'Junio',
+          'Julio',
+          'Agosto',
+          'Septiembre',
+          'Octubre',
+          'Noviembre',
+          'Diciembre',
+        ];
+        return '${meses[ahora.month - 1]} ${ahora.year}';
+      case _PeriodoResumen.anio:
+        return '${ahora.year}';
+    }
+  }
+
+  String _dosDigitos(int valor) => valor.toString().padLeft(2, '0');
+
+  String _formatearDispensado(int mililitros) {
+    if (mililitros < 1000) return '$mililitros ml';
+    return '${(mililitros / 1000).toStringAsFixed(2)} L';
   }
 
   // ============================================================
@@ -800,70 +887,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
     }
 
-    final docs = _pedidosCache;
-
-    int pedidosTotales = 0;
-    int pedidosEntregados = 0;
-    int mlRegistrados = 0;
-    double ventas = 0;
-
-    final Map<String, int> productosVendidos = {};
-
-    final Map<String, int> metodosPago = {};
-
-    for (final doc in docs) {
-      final data = doc.data();
-
-      pedidosTotales++;
-
-      final String estado = data['estado']?.toString() ?? '';
-
-      if (estado == 'entregado') {
-        pedidosEntregados++;
-      }
-
-      mlRegistrados += (data['cantidadTotalMl'] as num?)?.toInt() ?? 0;
-
-      final String estadoPago = data['estadoPago']?.toString() ?? '';
-
-      if (estadoPago == 'aprobado') {
-        ventas += (data['total'] as num?)?.toDouble() ?? 0;
-      }
-
-      final String metodoPago =
-          data['metodoPago']?.toString().toLowerCase() ?? 'desconocido';
-
-      metodosPago[metodoPago] = (metodosPago[metodoPago] ?? 0) + 1;
-
-      final dynamic items = data['items'];
-
-      if (items is List) {
-        for (final dynamic item in items) {
-          if (item is Map) {
-            final String nombre = item['nombre']?.toString() ?? 'Producto';
-
-            final int cantidad = (item['cantidad'] as num?)?.toInt() ?? 1;
-
-            productosVendidos[nombre] =
-                (productosVendidos[nombre] ?? 0) + cantidad;
-          }
-        }
-      }
-    }
-
-    String productoMasPedido = 'Sin datos';
-
-    int cantidadMasPedida = 0;
-
-    productosVendidos.forEach(
-      (producto, cantidad) {
-        if (cantidad > cantidadMasPedida) {
-          cantidadMasPedida = cantidad;
-
-          productoMasPedido = producto;
-        }
-      },
-    );
+    final resumen = _crearResumenSeleccionado();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -874,6 +898,25 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _PeriodoResumen.values.map((periodo) {
+            return ChoiceChip(
+              label: Text(_etiquetaPeriodo(periodo)),
+              selected: _periodoResumen == periodo,
+              selectedColor: AppColors.lilaClaro,
+              checkmarkColor: AppColors.lilaOscuro,
+              onSelected: (_) => setState(() => _periodoResumen = periodo),
+            );
+          }).toList(growable: false),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _descripcionPeriodoActivo(),
+          style: const TextStyle(color: Colors.black54, fontSize: 13),
         ),
         const SizedBox(height: 16),
         GridView.count(
@@ -886,22 +929,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           children: [
             _tarjetaEstadistica(
               titulo: 'Pedidos',
-              valor: '$pedidosTotales',
+              valor: '${resumen.pedidos.length}',
               icono: Icons.receipt_long,
             ),
             _tarjetaEstadistica(
               titulo: 'Ventas',
-              valor: '${ventas.toStringAsFixed(2)} Bs',
+              valor: '${resumen.totalVendido.toStringAsFixed(2)} Bs',
               icono: Icons.monetization_on,
             ),
             _tarjetaEstadistica(
               titulo: 'Entregados',
-              valor: '$pedidosEntregados',
+              valor: '${resumen.pedidosEntregados}',
               icono: Icons.check_circle,
             ),
             _tarjetaEstadistica(
               titulo: 'Dispensado',
-              valor: '$mlRegistrados ml',
+              valor: _formatearDispensado(resumen.dispensadoMl),
               icono: Icons.local_drink,
             ),
           ],
@@ -920,12 +963,52 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               'Producto más solicitado',
             ),
             subtitle: Text(
-              '$productoMasPedido\n'
-              '$cantidadMasPedida unidades',
+              '${resumen.productoMasVendido}\n'
+              '${resumen.cantidadProductoMasVendido} unidades',
             ),
             isThreeLine: true,
           ),
         ),
+        if (resumen.productosMasVendidos.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          const Text(
+            'Top productos del período',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: resumen.productosMasVendidos.map((producto) {
+                  final maximo = resumen.productosMasVendidos.first.cantidad;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: Text(producto.nombre)),
+                            Text('${producto.cantidad}'),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        LinearProgressIndicator(
+                          value: maximo == 0 ? 0 : producto.cantidad / maximo,
+                          minHeight: 7,
+                          borderRadius: BorderRadius.circular(6),
+                          color: AppColors.lilaMedio,
+                          backgroundColor: AppColors.lilaClaro,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(growable: false),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
         const Text(
           'Métodos de pago',
@@ -935,38 +1018,46 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
         ),
         const SizedBox(height: 10),
-        ...metodosPago.entries.map(
-          (entry) {
-            IconData icono;
+        if (resumen.metodosPago.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No hay ventas registradas en este período.'),
+            ),
+          )
+        else
+          ...resumen.metodosPago.entries.map(
+            (entry) {
+              IconData icono;
 
-            if (entry.key == 'qr') {
-              icono = Icons.qr_code;
-            } else if (entry.key == 'efectivo') {
-              icono = Icons.money;
-            } else {
-              icono = Icons.admin_panel_settings;
-            }
+              if (entry.key == 'qr') {
+                icono = Icons.qr_code;
+              } else if (entry.key == 'efectivo') {
+                icono = Icons.money;
+              } else {
+                icono = Icons.admin_panel_settings;
+              }
 
-            return Card(
-              child: ListTile(
-                leading: Icon(
-                  icono,
-                  color: AppColors.lilaOscuro,
-                ),
-                title: Text(
-                  entry.key.toUpperCase(),
-                ),
-                trailing: Text(
-                  '${entry.value}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+              return Card(
+                child: ListTile(
+                  leading: Icon(
+                    icono,
+                    color: AppColors.lilaOscuro,
+                  ),
+                  title: Text(
+                    entry.key.toUpperCase(),
+                  ),
+                  trailing: Text(
+                    '${entry.value}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
+              );
+            },
+          ),
       ],
     );
   }

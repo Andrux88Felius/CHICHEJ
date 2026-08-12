@@ -107,6 +107,42 @@ class SalesReportSummary {
 class ReportService {
   const ReportService();
 
+  SalesReportSummary crearResumenGeneral({
+    required Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> documentos,
+  }) {
+    final pedidos = documentos
+        .map(_normalizarPedido)
+        .whereType<ReportOrder>()
+        .toList()
+      ..sort((a, b) => b.fechaCreacion.compareTo(a.fechaCreacion));
+    final ahora = DateTime.now();
+    final inicio = pedidos.isEmpty ? ahora : pedidos.last.fechaCreacion;
+    final fin = pedidos.isEmpty ? ahora : pedidos.first.fechaCreacion;
+    return _crearResumenPedidos(pedidos, inicio, fin);
+  }
+
+  SalesReportSummary crearResumenEntre({
+    required Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> documentos,
+    required DateTime inicio,
+    required DateTime finExclusivo,
+  }) {
+    final pedidos = documentos
+        .map(_normalizarPedido)
+        .whereType<ReportOrder>()
+        .where(
+          (pedido) =>
+              !pedido.fechaCreacion.isBefore(inicio) &&
+              pedido.fechaCreacion.isBefore(finExclusivo),
+        )
+        .toList()
+      ..sort((a, b) => b.fechaCreacion.compareTo(a.fechaCreacion));
+    return _crearResumenPedidos(
+      pedidos,
+      inicio,
+      finExclusivo.subtract(const Duration(microseconds: 1)),
+    );
+  }
+
   SalesReportSummary crearResumen({
     required Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> documentos,
     required DateTime fechaInicial,
@@ -123,17 +159,18 @@ class ReportService {
       fechaFinal.day + 1,
     );
 
-    final pedidos = documentos
-        .map(_normalizarPedido)
-        .whereType<ReportOrder>()
-        .where(
-          (pedido) =>
-              !pedido.fechaCreacion.isBefore(inicio) &&
-              pedido.fechaCreacion.isBefore(finExclusivo),
-        )
-        .toList()
-      ..sort((a, b) => b.fechaCreacion.compareTo(a.fechaCreacion));
+    return crearResumenEntre(
+      documentos: documentos,
+      inicio: inicio,
+      finExclusivo: finExclusivo,
+    );
+  }
 
+  SalesReportSummary _crearResumenPedidos(
+    List<ReportOrder> pedidos,
+    DateTime fechaInicial,
+    DateTime fechaFinal,
+  ) {
     var pedidosEntregados = 0;
     var ventasValidas = 0;
     var totalVendido = 0.0;
@@ -185,8 +222,8 @@ class ReportService {
     }
 
     return SalesReportSummary(
-      fechaInicial: inicio,
-      fechaFinal: finExclusivo.subtract(const Duration(microseconds: 1)),
+      fechaInicial: fechaInicial,
+      fechaFinal: fechaFinal,
       pedidos: pedidos,
       pedidosEntregados: pedidosEntregados,
       ventasValidas: ventasValidas,
