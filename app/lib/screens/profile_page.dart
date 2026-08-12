@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
 import '../utils/colors.dart';
+import 'chichej_info_page.dart';
 import 'event_order_page.dart' as event_page;
 import 'login_page.dart';
 import 'monthly_promo_page.dart' as promo_page;
@@ -214,6 +215,20 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         title: const Text('Perfil 👤'),
         backgroundColor: AppColors.lilaOscuro,
+        actions: [
+          IconButton(
+            tooltip: 'Información de CHICHEJ',
+            icon: const Icon(Icons.info_outline),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ChichejInfoPage(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
