@@ -339,17 +339,18 @@ class _LoginPageState extends State<LoginPage> {
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                vertical: 40,
-                horizontal: 30,
+                vertical: 16,
+                horizontal: 24,
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Image.asset(
                     'assets/logochichej.png',
-                    height: 150,
+                    height: (MediaQuery.sizeOf(context).height * 0.20)
+                        .clamp(140.0, 190.0),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
@@ -369,7 +370,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
                   TextField(
                     controller: passwordController,
                     obscureText: !isPasswordVisible,
@@ -405,8 +406,19 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: isLoading ? null : _restablecerContrasena,
+                      child: const Text(
+                        '¿Olvidaste tu contraseña?',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
+                    dense: true,
                     controlAffinity: ListTileControlAffinity.leading,
                     activeColor: AppColors.dorado,
                     checkColor: Colors.black,
@@ -421,17 +433,7 @@ class _LoginPageState extends State<LoginPage> {
                             setState(() => mantenerSesion = value ?? false);
                           },
                   ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: isLoading ? null : _restablecerContrasena,
-                      child: const Text(
-                        '¿Olvidaste tu contraseña?',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 14),
                   if (isLoading)
                     const CircularProgressIndicator(
                       color: AppColors.dorado,
@@ -460,7 +462,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
                   TextButton.icon(
                     onPressed: isLoading ? null : () => login(isGuest: true),
                     icon: const Icon(
@@ -475,7 +477,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   GestureDetector(
                     onTap: isLoading
                         ? null
@@ -487,11 +489,19 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             );
                           },
-                    child: const Text(
-                      '¿No tienes cuenta? Regístrate',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 15,
+                    child: const Text.rich(
+                      TextSpan(
+                        text: '¿No tienes cuenta?  ',
+                        style: TextStyle(color: Colors.white70, fontSize: 15),
+                        children: [
+                          TextSpan(
+                            text: 'Regístrate',
+                            style: TextStyle(
+                              color: AppColors.dorado,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

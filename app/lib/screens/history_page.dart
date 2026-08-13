@@ -2,12 +2,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
 import '../utils/colors.dart';
 
-class HistoryPage extends StatelessWidget {
+enum _PeriodoHistorial { recientes, hoy, mes, anio, todos }
+
+class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
+
+  @override
+  State<HistoryPage> createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends State<HistoryPage> {
+  _PeriodoHistorial _periodo = _PeriodoHistorial.recientes;
 
   // ============================================================
   // FORMATO DE FECHA
@@ -121,6 +129,30 @@ class HistoryPage extends StatelessWidget {
     });
 
     return pedidos;
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filtrarPeriodo(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> pedidos,
+  ) {
+    if (_periodo == _PeriodoHistorial.recientes) {
+      return pedidos.take(7).toList();
+    }
+    if (_periodo == _PeriodoHistorial.todos) return pedidos;
+    final ahora = DateTime.now();
+    return pedidos.where((doc) {
+      final raw = doc.data()['fechaCreacion'];
+      if (raw is! Timestamp) return false;
+      final fecha = raw.toDate();
+      if (_periodo == _PeriodoHistorial.hoy) {
+        return fecha.year == ahora.year &&
+            fecha.month == ahora.month &&
+            fecha.day == ahora.day;
+      }
+      if (_periodo == _PeriodoHistorial.mes) {
+        return fecha.year == ahora.year && fecha.month == ahora.month;
+      }
+      return fecha.year == ahora.year;
+    }).toList();
   }
 
   // ============================================================
@@ -539,85 +571,6 @@ class HistoryPage extends StatelessWidget {
   }
 
   // ============================================================
-  // RESERVAS LOCALES - TEMPORAL
-  // ============================================================
-
-  Widget _reservasLocales(
-    OrderProvider orderProvider,
-  ) {
-    if (orderProvider.reservas.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            20,
-            16,
-            8,
-          ),
-          child: Text(
-            'Pedidos especiales / Eventos',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        ...orderProvider.reservas.map(
-          (reserva) {
-            final dynamic fechaRaw = reserva['fecha'];
-
-            final DateTime? fecha = fechaRaw is DateTime ? fechaRaw : null;
-
-            return Card(
-              elevation: 2,
-              margin: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
-              ),
-              color: Colors.orange.shade50,
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: Colors.orange,
-                  child: Icon(
-                    Icons.event,
-                    color: Colors.white,
-                  ),
-                ),
-                title: Text(
-                  'Reserva: '
-                  '${reserva['evento'] ?? 'Evento'}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  fecha == null
-                      ? 'Cantidad: '
-                          '${reserva['cantidad']}'
-                      : '${_formatearFecha(fecha)}\n'
-                          'Cantidad: '
-                          '${reserva['cantidad']}',
-                ),
-                isThreeLine: fecha != null,
-                trailing: Chip(
-                  label: Text(
-                    reserva['estado']?.toString() ?? 'Pendiente',
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
   // INVITADO
   // ============================================================
 
@@ -661,6 +614,107 @@ class HistoryPage extends StatelessWidget {
     );
   }
 
+  Widget _reservasFirestore({
+    required String uid,
+    required String email,
+  }) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('reservas')
+          .orderBy('fechaCreacion', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No se pudieron cargar tus solicitudes comerciales.'),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final correoNormalizado = email.trim().toLowerCase();
+        final reservas = snapshot.data!.docs.where((doc) {
+          final data = doc.data();
+          final reservaUid = data['usuarioId']?.toString().trim();
+          if (reservaUid != null && reservaUid.isNotEmpty) {
+            return reservaUid == uid;
+          }
+          final correoReserva =
+              data['email']?.toString().trim().toLowerCase() ?? '';
+          return correoNormalizado.isNotEmpty &&
+              correoReserva == correoNormalizado;
+        }).toList();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Reservas / Solicitudes comerciales',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (reservas.isEmpty)
+                const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.event_note_outlined),
+                    title: Text(
+                      'No tienes solicitudes comerciales registradas.',
+                    ),
+                  ),
+                ),
+              ...reservas.map((doc) {
+                final data = doc.data();
+                final fechaRaw = data['fechaCreacion'];
+                final fecha = fechaRaw is Timestamp
+                    ? _formatearFecha(fechaRaw.toDate())
+                    : 'Sin fecha';
+                final estado = data['estado']?.toString() ?? 'pendiente';
+                final cantidad = data['cantidadSolicitada']?.toString().trim();
+                final cantidadLegacy = data['cantidad']?.toString().trim();
+                final cantidadTexto = cantidad?.isNotEmpty == true
+                    ? cantidad!
+                    : cantidadLegacy?.isNotEmpty == true
+                        ? cantidadLegacy!
+                        : 'No especificada';
+                return Card(
+                  child: ExpansionTile(
+                    leading: const Icon(
+                      Icons.event_note,
+                      color: AppColors.lilaOscuro,
+                    ),
+                    title: Text('Solicitud • ${estado.toUpperCase()}'),
+                    subtitle: Text('$fecha\nCantidad: $cantidadTexto'),
+                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    children: [
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          data['detalle']?.toString() ?? 'Sin detalle',
+                        ),
+                        subtitle: Text(
+                          'Lugar: ${data['lugarEvento'] ?? 'Sin lugar'}\n'
+                          'Teléfono: ${data['telefono'] ?? 'Sin teléfono'}',
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // ============================================================
   // BUILD
   // ============================================================
@@ -668,8 +722,6 @@ class HistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final UserProvider userProvider = Provider.of<UserProvider>(context);
-
-    final OrderProvider orderProvider = Provider.of<OrderProvider>(context);
 
     if (userProvider.esInvitado) {
       return Scaffold(
@@ -685,6 +737,7 @@ class HistoryPage extends StatelessWidget {
     }
 
     final String? uid = userProvider.uid;
+    final String emailUsuario = userProvider.user?.email ?? '';
 
     if (uid == null || uid.isEmpty) {
       return Scaffold(
@@ -757,37 +810,35 @@ class HistoryPage extends StatelessWidget {
             );
           }
 
-          final pedidos = _filtrarPedidosUsuario(
+          final todosLosPedidos = _filtrarPedidosUsuario(
             snapshot.data!.docs,
             uid,
           );
-
-          if (pedidos.isEmpty && orderProvider.reservas.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.history,
-                    size: 80,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Aún no tienes compras registradas',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
+          final pedidos = _filtrarPeriodo(todosLosPedidos);
 
           return ListView(
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: Wrap(
+                  spacing: 7,
+                  runSpacing: 6,
+                  children: _PeriodoHistorial.values.map((periodo) {
+                    final texto = switch (periodo) {
+                      _PeriodoHistorial.recientes => 'Últimos 7',
+                      _PeriodoHistorial.hoy => 'Hoy',
+                      _PeriodoHistorial.mes => 'Este mes',
+                      _PeriodoHistorial.anio => 'Este año',
+                      _PeriodoHistorial.todos => 'Todos',
+                    };
+                    return ChoiceChip(
+                      label: Text(texto),
+                      selected: _periodo == periodo,
+                      onSelected: (_) => setState(() => _periodo = periodo),
+                    );
+                  }).toList(),
+                ),
+              ),
               if (pedidos.isNotEmpty)
                 _resumenHistorial(
                   pedidos,
@@ -813,7 +864,7 @@ class HistoryPage extends StatelessWidget {
                 (index) {
                   // Como ya están ordenados
                   // de reciente a antiguo:
-                  final int numero = pedidos.length - index;
+                  final int numero = todosLosPedidos.length - index;
 
                   return _tarjetaPedido(
                     pedidos[index],
@@ -821,8 +872,16 @@ class HistoryPage extends StatelessWidget {
                   );
                 },
               ),
-              _reservasLocales(
-                orderProvider,
+              if (pedidos.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(28),
+                  child: Center(
+                    child: Text('No hay compras en el período seleccionado.'),
+                  ),
+                ),
+              _reservasFirestore(
+                uid: uid,
+                email: emailUsuario,
               ),
               const SizedBox(height: 30),
             ],

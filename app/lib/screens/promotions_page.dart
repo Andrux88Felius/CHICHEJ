@@ -429,29 +429,26 @@ class _PromotionsPageState extends State<PromotionsPage> {
                   child,
                 ) {
                   double escala = 1;
-  
+
                   if (_pageController.position.haveDimensions) {
                     final double pagina =
-                        _pageController.page ??
-                            _paginaActual.toDouble();
-  
-                    final double diferencia =
-                        (pagina - index).abs();
-  
+                        _pageController.page ?? _paginaActual.toDouble();
+
+                    final double diferencia = (pagina - index).abs();
+
                     escala = 1 - (diferencia * 0.06);
-  
+
                     escala = escala.clamp(
                       0.94,
                       1.0,
                     );
                   }
-  
+
                   return Transform.scale(
                     scale: escala,
                     child: child,
                   );
                 },
-  
                 child: Container(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 5,
@@ -475,7 +472,6 @@ class _PromotionsPageState extends State<PromotionsPage> {
                         Container(
                           color: AppColors.lilaOscuro,
                         ),
-  
                         Image.asset(
                           promos[index]['imagen']!,
                           fit: BoxFit.cover,
@@ -496,7 +492,6 @@ class _PromotionsPageState extends State<PromotionsPage> {
                             );
                           },
                         ),
-  
                         Positioned(
                           top: 14,
                           left: 14,
@@ -530,9 +525,7 @@ class _PromotionsPageState extends State<PromotionsPage> {
             },
           ),
         ),
-  
         const SizedBox(height: 8),
-  
         _indicadores(),
       ],
     );
@@ -549,6 +542,7 @@ class _PromotionsPageState extends State<PromotionsPage> {
     final String? uid = userProvider.uid;
 
     final bool puedeAcumular = userProvider.esRegistrado && uid != null;
+    final bool esInvitado = userProvider.esInvitado;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -564,20 +558,13 @@ class _PromotionsPageState extends State<PromotionsPage> {
         ),
         children: [
           const SizedBox(height: 12),
-
           _carrusel(),
-
           const SizedBox(height: 18),
-
-          if (puedeAcumular)
-            _mensajeAdministrador(),
-          
-          if (puedeAcumular)
-            const SizedBox(height: 22),
-
-          if (!puedeAcumular)
+          _publicacionesActivas(),
+          const SizedBox(height: 22),
+          if (esInvitado)
             _mensajeInvitado()
-          else
+          else if (puedeAcumular)
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               // Por ahora escuchamos pedidos y filtramos
               // en memoria. Para la feria es suficiente
@@ -762,66 +749,13 @@ class _PromotionsPageState extends State<PromotionsPage> {
                 );
               },
             ),
-
-          const SizedBox(height: 16),
-
-          // =====================================================
-          // EVENTOS
-          // =====================================================
-
-          Container(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ),
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [
-                  AppColors.lilaOscuro,
-                  AppColors.lilaMedio,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Column(
-              children: [
-                Icon(
-                  Icons.celebration,
-                  color: Colors.white,
-                  size: 38,
-                ),
-                SizedBox(height: 9),
-                Text(
-                  'Premios y eventos CHICHEJ',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 7),
-                Text(
-                  'Participa en promociones, '
-                  'sorteos y beneficios '
-                  'especiales durante nuestros '
-                  'eventos.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _mensajeAdministrador() {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
+  Widget _publicacionesActivas() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('mensajes')
           .orderBy(
@@ -833,102 +767,105 @@ class _PromotionsPageState extends State<PromotionsPage> {
         context,
         snapshot,
       ) {
-        if (!snapshot.hasData ||
-            snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const SizedBox.shrink();
         }
 
-        QueryDocumentSnapshot<
-            Map<String, dynamic>>? mensajeActivo;
+        QueryDocumentSnapshot<Map<String, dynamic>>? promocionActiva;
+        QueryDocumentSnapshot<Map<String, dynamic>>? informativoActivo;
 
-        for (final doc
-            in snapshot.data!.docs) {
-          if (doc.data()['activo'] == true) {
-            mensajeActivo = doc;
-            break;
+        for (final doc in snapshot.data!.docs) {
+          final data = doc.data();
+          if (data['activo'] != true) continue;
+          if (data['tipo'] == 'promocion' && promocionActiva == null) {
+            promocionActiva = doc;
+          } else if (data['tipo'] != 'promocion' && informativoActivo == null) {
+            informativoActivo = doc;
           }
         }
 
-        if (mensajeActivo == null) {
+        if (promocionActiva == null && informativoActivo == null) {
           return const SizedBox.shrink();
         }
 
-        final data =
-            mensajeActivo.data();
-
-        final String titulo =
-            data['titulo']?.toString() ??
-                'CHICHEJ';
-
-        final String mensaje =
-            data['mensaje']?.toString() ?? '';
-
-        return Container(
-          margin: const EdgeInsets.symmetric(
-            horizontal: 16,
-          ),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                AppColors.lilaOscuro,
-                AppColors.lilaMedio,
-              ],
-            ),
-            borderRadius:
-                BorderRadius.circular(20),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              const CircleAvatar(
-                backgroundColor:
-                    Colors.white24,
-                child: Icon(
-                  Icons.campaign,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      titulo,
-                      style:
-                          const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      mensaje,
-                      style:
-                          const TextStyle(
-                        color: Colors.white,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        return Column(
+          children: [
+            if (promocionActiva != null)
+              _bloquePublicacion(promocionActiva.data(), esPromocion: true),
+            if (promocionActiva != null && informativoActivo != null)
+              const SizedBox(height: 12),
+            if (informativoActivo != null)
+              _bloquePublicacion(informativoActivo.data(), esPromocion: false),
+          ],
         );
       },
+    );
+  }
+
+  Widget _bloquePublicacion(
+    Map<String, dynamic> data, {
+    required bool esPromocion,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: esPromocion
+              ? const [AppColors.lilaOscuro, AppColors.lilaMedio]
+              : [Colors.teal.shade700, Colors.teal.shade400],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.white24,
+            child: Icon(
+              esPromocion ? Icons.local_offer : Icons.info_outline,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  esPromocion ? 'PROMOCIÓN ACTIVA' : 'INFORMATIVO ACTIVO',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  data['titulo']?.toString() ?? 'CHICHEJ',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  data['mensaje']?.toString() ?? '',
+                  style: const TextStyle(color: Colors.white, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

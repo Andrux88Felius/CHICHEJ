@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dispenser_admin_page.dart';
 import 'admin_reports_page.dart';
+import 'admin_reservations_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart' as fb_db;
 import 'package:flutter/material.dart';
@@ -16,6 +17,10 @@ import '../utils/colors.dart';
 import 'admin_user_detail_page.dart';
 
 enum _PeriodoResumen { general, dia, mes, anio }
+
+enum _PeriodoUsuarios { hoy, mes, todos }
+
+enum _PeriodoActividad { recientes, hoy, mes, anio, todos }
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -41,6 +46,25 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   bool _cargandoPedidos = true;
   Object? _errorPedidos;
   _PeriodoResumen _periodoResumen = _PeriodoResumen.general;
+  _PeriodoUsuarios _periodoUsuarios = _PeriodoUsuarios.todos;
+  _PeriodoActividad _periodoActividad = _PeriodoActividad.recientes;
+  String _busquedaActividad = '';
+
+  DateTime? _fechaRegistroSegura(dynamic valor) {
+    if (valor is num) {
+      return DateTime.fromMillisecondsSinceEpoch(valor.toInt());
+    }
+    if (valor is String) {
+      final texto = valor.trim();
+      if (texto.isEmpty) return null;
+      final numero = num.tryParse(texto);
+      if (numero != null) {
+        return DateTime.fromMillisecondsSinceEpoch(numero.toInt());
+      }
+      return DateTime.tryParse(texto);
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -177,11 +201,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     final String? avatarPath = usuario['avatarPath']?.toString();
 
+    int enteroSeguro(dynamic valor) {
+      if (valor is num) return valor.toInt();
+      if (valor is String) return num.tryParse(valor.trim())?.toInt() ?? 0;
+      return 0;
+    }
+
     final int muestrasDisponibles =
-        (usuario['muestrasGratisDisponibles'] as num?)?.toInt() ?? 0;
+        enteroSeguro(usuario['muestrasGratisDisponibles']);
 
     final int muestrasUtilizadas =
-        (usuario['muestrasGratisUtilizadas'] as num?)?.toInt() ?? 0;
+        enteroSeguro(usuario['muestrasGratisUtilizadas']);
 
     Navigator.push(
       context,
@@ -194,6 +224,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           avatarPath: avatarPath,
           muestrasDisponibles: muestrasDisponibles,
           muestrasUtilizadas: muestrasUtilizadas,
+          telefono: usuario['telefono']?.toString() ?? '',
+          fechaRegistro: _fechaRegistroSegura(usuario['fechaRegistro']),
         ),
       ),
     );
@@ -1130,15 +1162,78 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
     }
 
-    final usuarios = _usuariosCache;
-
-    if (usuarios.isEmpty) {
-      return const Center(
-        child: Text(
-          'No hay usuarios registrados.',
-        ),
-      );
+    final ahora = DateTime.now();
+    bool esHoy(Map<String, dynamic> usuario) {
+      final fecha = _fechaRegistroSegura(usuario['fechaRegistro']);
+      if (fecha == null) return false;
+      return fecha.year == ahora.year &&
+          fecha.month == ahora.month &&
+          fecha.day == ahora.day;
     }
+
+    bool esMes(Map<String, dynamic> usuario) {
+      final fecha = _fechaRegistroSegura(usuario['fechaRegistro']);
+      if (fecha == null) return false;
+      return fecha.year == ahora.year && fecha.month == ahora.month;
+    }
+
+    final registradosHoy = _usuariosCache.where(esHoy).length;
+    final registradosMes = _usuariosCache.where(esMes).length;
+    final pedidosPorUsuario = <String, List<Map<String, dynamic>>>{};
+    for (final doc in _pedidosCache) {
+      final data = doc.data();
+      final uid = data['usuarioId']?.toString() ?? '';
+      if (uid.isNotEmpty) {
+        pedidosPorUsuario.putIfAbsent(uid, () => []).add(data);
+      }
+    }
+    String estadoCliente(Map<String, dynamic> usuario) {
+      if (usuario['bloqueado'] == true) return 'Bloqueados';
+      final docs = pedidosPorUsuario[usuario['uid']?.toString()] ?? const [];
+      if (docs.isEmpty) return 'Sin compras';
+      final fechas = docs
+          .map((pedido) => pedido['fechaCreacion'])
+          .whereType<Timestamp>()
+          .map((fecha) => fecha.toDate())
+          .toList()
+        ..sort();
+      if (fechas.isEmpty || ahora.difference(fechas.last).inDays > 30) {
+        return 'Inactivos';
+      }
+      return 'Activos';
+    }
+
+    final clientes = _usuariosCache.where((usuario) {
+      final rol = usuario['rol']?.toString() ?? 'cliente';
+      return rol != 'admin' && rol != 'admin_principal';
+    }).toList();
+    final estados = <String, int>{};
+    for (final cliente in clientes) {
+      final estado = estadoCliente(cliente);
+      estados[estado] = (estados[estado] ?? 0) + 1;
+    }
+    final ranking = clientes.map((usuario) {
+      final uid = usuario['uid']?.toString() ?? '';
+      final docs = pedidosPorUsuario[uid] ?? const [];
+      final ml = docs.where((p) => p['estado'] == 'entregado').fold<int>(
+            0,
+            (total, p) =>
+                total + ((p['cantidadTotalMl'] as num?)?.toInt() ?? 0),
+          );
+      return (usuario: usuario, ml: ml, pedidos: docs.length);
+    }).toList()
+      ..sort((a, b) => b.ml.compareTo(a.ml));
+    final usuarios = _usuariosCache.where((usuario) {
+      if (_periodoUsuarios == _PeriodoUsuarios.todos) return true;
+      final fecha = _fechaRegistroSegura(usuario['fechaRegistro']);
+      if (fecha == null) return false;
+      if (_periodoUsuarios == _PeriodoUsuarios.hoy) {
+        return fecha.year == ahora.year &&
+            fecha.month == ahora.month &&
+            fecha.day == ahora.day;
+      }
+      return fecha.year == ahora.year && fecha.month == ahora.month;
+    }).toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1160,10 +1255,101 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 size: 18,
               ),
               label: Text(
-                '${usuarios.length}',
+                '${_usuariosCache.length}',
               ),
             ),
           ],
+        ),
+        Card(
+          color: const Color(0xfff7f3fa),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _datoUsuario(
+                    titulo: 'Total',
+                    valor: '${_usuariosCache.length}',
+                    icono: Icons.people,
+                  ),
+                ),
+                Expanded(
+                  child: _datoUsuario(
+                    titulo: 'Hoy',
+                    valor: '$registradosHoy',
+                    icono: Icons.today,
+                  ),
+                ),
+                Expanded(
+                  child: _datoUsuario(
+                    titulo: 'Este mes',
+                    valor: '$registradosMes',
+                    icono: Icons.calendar_month,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Card(
+          child: ExpansionTile(
+            leading: const Icon(Icons.insights, color: AppColors.lilaOscuro),
+            title: const Text('Resumen de clientes'),
+            subtitle: const Text('Actividad y consumo histórico'),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            children: [
+              Wrap(
+                spacing: 7,
+                runSpacing: 6,
+                children: ['Activos', 'Inactivos', 'Bloqueados', 'Sin compras']
+                    .map((estado) => Chip(
+                          label: Text('$estado: ${estados[estado] ?? 0}'),
+                        ))
+                    .toList(),
+              ),
+              if (ranking.isNotEmpty) ...[
+                const Divider(),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Mayor consumo',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ...ranking.take(3).toList().asMap().entries.map((entry) {
+                  final dato = entry.value;
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(child: Text('${entry.key + 1}')),
+                    title: Text(
+                      dato.usuario['nombre']?.toString() ?? 'Usuario',
+                    ),
+                    trailing: Text('${dato.ml} ml • ${dato.pedidos} pedidos'),
+                  );
+                }),
+              ],
+            ],
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          children: _PeriodoUsuarios.values.map((periodo) {
+            final etiqueta = switch (periodo) {
+              _PeriodoUsuarios.hoy => 'Hoy',
+              _PeriodoUsuarios.mes => 'Este mes',
+              _PeriodoUsuarios.todos => 'Todos',
+            };
+            return ChoiceChip(
+              label: Text(etiqueta),
+              selected: _periodoUsuarios == periodo,
+              onSelected: (_) => setState(() => _periodoUsuarios = periodo),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Registros en el período: ${usuarios.length}',
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 12),
         if (userProvider.esAdminPrincipal)
@@ -1198,6 +1384,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   ),
                 ),
               ],
+            ),
+          ),
+        if (usuarios.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(
+                child: Text('No hay usuarios registrados en este período.'),
+              ),
             ),
           ),
         ...usuarios.map(
@@ -1477,6 +1672,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   ) async {
     String tituloTexto = '';
     String mensajeTexto = '';
+    String tipoMensaje = 'informativo';
 
     final Map<String, String>? resultado =
         await showDialog<Map<String, String>>(
@@ -1501,6 +1697,27 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                DropdownButtonFormField<String>(
+                  initialValue: tipoMensaje,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de publicación',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'informativo',
+                      child: Text('Mensaje informativo'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'promocion',
+                      child: Text('Promoción'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) tipoMensaje = value;
+                  },
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   maxLength: 60,
                   decoration: const InputDecoration(
@@ -1574,6 +1791,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   {
                     'titulo': titulo,
                     'mensaje': mensaje,
+                    'tipo': tipoMensaje,
                   },
                 );
               },
@@ -1603,6 +1821,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         mensaje: mensaje,
         creadoPorUid: userProvider.uid ?? '',
         creadoPorNombre: userProvider.user?.nombre ?? 'Administrador principal',
+        tipo: resultado['tipo'] ?? 'informativo',
       );
 
       await _registrarAuditoria(
@@ -1643,6 +1862,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     required String mensajeId,
     required String titulo,
     required bool activoActual,
+    required String tipo,
   }) async {
     final bool nuevoEstado = !activoActual;
 
@@ -1650,6 +1870,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       await _adminService.cambiarEstadoMensaje(
         mensajeId: mensajeId,
         activo: nuevoEstado,
+        tipo: tipo,
       );
 
       await _registrarAuditoria(
@@ -1970,6 +2191,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               final String titulo = data['titulo']?.toString() ?? 'Sin título';
               final String mensaje = data['mensaje']?.toString() ?? '';
               final bool activo = data['activo'] == true;
+              final String tipo = data['tipo']?.toString() == 'promocion'
+                  ? 'promocion'
+                  : 'informativo';
               final String autor =
                   data['creadoPorNombre']?.toString() ?? 'Administrador';
               final Timestamp? fecha = data['fechaCreacion'] is Timestamp
@@ -2007,12 +2231,32 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             ),
                           ),
                           Chip(
-                            label: Text(activo ? 'ACTIVO' : 'INACTIVO'),
+                            label: Text(
+                              tipo == 'promocion'
+                                  ? activo
+                                      ? 'PROMOCIÓN ACTIVA'
+                                      : 'PROMOCIÓN INACTIVA'
+                                  : 'INFORMATIVO',
+                            ),
                             backgroundColor: activo
                                 ? Colors.green.shade50
                                 : Colors.grey.shade200,
                           ),
                         ],
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Chip(
+                          avatar: Icon(
+                            tipo == 'promocion'
+                                ? Icons.local_offer
+                                : Icons.info_outline,
+                            size: 16,
+                          ),
+                          label: Text(
+                            tipo == 'promocion' ? 'PROMOCIÓN' : 'INFORMATIVO',
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(mensaje, style: const TextStyle(height: 1.35)),
@@ -2037,6 +2281,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                     mensajeId: doc.id,
                                     titulo: titulo,
                                     activoActual: activo,
+                                    tipo: tipo,
                                   );
                                 },
                                 icon: Icon(
@@ -2121,6 +2366,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'regalo_muestra':
         return Icons.card_giftcard;
 
+      case 'cortesia_dispensada':
+        return Icons.local_drink;
+
       case 'cambio_rol':
         return Icons.admin_panel_settings;
 
@@ -2171,6 +2419,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       case 'regalo_muestra':
         return Colors.green;
+
+      case 'cortesia_dispensada':
+        return Colors.teal;
 
       case 'cambio_rol':
         return Colors.orange;
@@ -2223,6 +2474,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case 'regalo_muestra':
         return 'Muestra otorgada';
 
+      case 'cortesia_dispensada':
+        return 'Cortesía dispensada';
+
       case 'cambio_rol':
         return 'Cambio de rol';
 
@@ -2264,6 +2518,59 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filtrarActividad(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> documentos,
+  ) {
+    final ahora = DateTime.now();
+    var filtrados = documentos.where((doc) {
+      if (_periodoActividad == _PeriodoActividad.todos ||
+          _periodoActividad == _PeriodoActividad.recientes) {
+        return true;
+      }
+      final raw = doc.data()['fecha'];
+      if (raw is! Timestamp) return false;
+      final fecha = raw.toDate();
+      if (_periodoActividad == _PeriodoActividad.hoy) {
+        return fecha.year == ahora.year &&
+            fecha.month == ahora.month &&
+            fecha.day == ahora.day;
+      }
+      if (_periodoActividad == _PeriodoActividad.mes) {
+        return fecha.year == ahora.year && fecha.month == ahora.month;
+      }
+      return fecha.year == ahora.year;
+    }).toList();
+
+    if (_periodoActividad == _PeriodoActividad.recientes) {
+      filtrados = filtrados.take(7).toList();
+    }
+
+    final consulta = _busquedaActividad.trim().toLowerCase();
+    if (consulta.isEmpty) return filtrados;
+
+    return filtrados.where((doc) {
+      final data = doc.data();
+      final fecha = data['fecha'] is Timestamp
+          ? _formatearFechaActividad(data['fecha'] as Timestamp)
+          : '';
+      final accion = data['accion']?.toString() ?? '';
+      final contenido = [
+        accion,
+        _tituloAuditoria(accion),
+        data['adminNombre'],
+        data['adminRol'],
+        data['descripcion'],
+        data['usuarioNombre'],
+        data['productoNombre'],
+        data['valorAnterior'],
+        data['valorNuevo'],
+        data['cantidad'],
+        fecha,
+      ].where((valor) => valor != null).join(' ').toLowerCase();
+      return contenido.contains(consulta);
+    }).toList();
+  }
+
   Widget _buildActividad() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _adminService.observarAuditoria(),
@@ -2290,9 +2597,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           );
         }
 
-        final docs = snapshot.data!.docs;
+        final todosLosDocs = snapshot.data!.docs;
+        final docs = _filtrarActividad(todosLosDocs);
 
-        if (docs.isEmpty) {
+        if (todosLosDocs.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(30),
@@ -2338,6 +2646,52 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               ),
             ),
             const SizedBox(height: 14),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Buscar en la actividad',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onChanged: (valor) => setState(() => _busquedaActividad = valor),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 7,
+              runSpacing: 6,
+              children: _PeriodoActividad.values.map((periodo) {
+                final texto = switch (periodo) {
+                  _PeriodoActividad.recientes => 'Últimos 7',
+                  _PeriodoActividad.hoy => 'Hoy',
+                  _PeriodoActividad.mes => 'Este mes',
+                  _PeriodoActividad.anio => 'Este año',
+                  _PeriodoActividad.todos => 'Todos',
+                };
+                return ChoiceChip(
+                  label: Text(texto),
+                  selected: _periodoActividad == periodo,
+                  onSelected: (_) =>
+                      setState(() => _periodoActividad = periodo),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 14),
+            if (docs.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(
+                    child: Text(
+                      'No hay actividad que coincida con los filtros.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
             ...docs.map(
               (doc) {
                 final data = doc.data();
@@ -2507,7 +2861,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
 
     return DefaultTabController(
-      length: 7,
+      length: 8,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -2563,6 +2917,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 text: 'Actividad',
               ),
               Tab(
+                icon: Icon(Icons.event_note),
+                text: 'Reservas',
+              ),
+              Tab(
                 icon: Icon(Icons.picture_as_pdf),
                 text: 'Reportes',
               ),
@@ -2584,8 +2942,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               userProvider,
             ),
             _buildActividad(),
+            const AdminReservationsPage(),
             AdminReportsPage(
               pedidos: _pedidosCache,
+              usuarios: _usuariosCache,
               cargando: _cargandoPedidos,
               error: _errorPedidos,
             ),

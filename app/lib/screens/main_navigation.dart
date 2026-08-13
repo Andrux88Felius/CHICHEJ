@@ -41,14 +41,20 @@ class _MainNavigationState extends State<MainNavigation> {
             'activo',
             isEqualTo: true,
           )
-          .limit(1)
           .snapshots(),
       builder: (
         context,
         snapshot,
       ) {
-        final bool hayMensajeActivo =
-            snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+        final bool hayMensajeActivo = snapshot.hasData &&
+            snapshot.data!.docs.any((doc) {
+              final data = doc.data();
+              final tipo = data['tipo']?.toString();
+              return tipo == 'promocion' ||
+                  tipo == 'informativo' ||
+                  tipo == 'general' ||
+                  tipo == null;
+            });
 
         return SizedBox(
           width: 30,

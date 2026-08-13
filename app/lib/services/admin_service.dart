@@ -39,7 +39,6 @@ class AdminService {
           'fecha',
           descending: true,
         )
-        .limit(100)
         .snapshots();
   }
 
@@ -161,7 +160,7 @@ class AdminService {
   // ============================================================
   // MENSAJES GENERALES CHICHEJ
   // ============================================================
-  
+
   Stream<QuerySnapshot<Map<String, dynamic>>> observarMensajes() {
     return _firestore
         .collection('mensajes')
@@ -171,50 +170,88 @@ class AdminService {
         )
         .snapshots();
   }
-  
+
   Future<String> crearMensaje({
     required String titulo,
     required String mensaje,
     required String creadoPorUid,
     required String creadoPorNombre,
+    required String tipo,
   }) async {
     final String tituloLimpio = titulo.trim();
     final String mensajeLimpio = mensaje.trim();
-  
+
     if (tituloLimpio.isEmpty) {
       throw ArgumentError(
         'El título no puede estar vacío.',
       );
     }
-  
+
     if (mensajeLimpio.isEmpty) {
       throw ArgumentError(
         'El mensaje no puede estar vacío.',
       );
     }
-  
+
     final DocumentReference<Map<String, dynamic>> documento =
-        await _firestore.collection('mensajes').add({
+        _firestore.collection('mensajes').doc();
+    final batch = _firestore.batch();
+
+    final tipoNormalizado = tipo == 'promocion' ? 'promocion' : 'informativo';
+    final publicaciones = await _firestore.collection('mensajes').get();
+    for (final publicacion in publicaciones.docs) {
+      final tipoExistente = publicacion.data()['tipo']?.toString();
+      final esPromocion = tipoExistente == 'promocion';
+      final mismaCategoria =
+          tipoNormalizado == 'promocion' ? esPromocion : !esPromocion;
+      if (mismaCategoria && publicacion.data()['activo'] == true) {
+        batch.update(publicacion.reference, {'activo': false});
+      }
+    }
+
+    batch.set(documento, {
       'titulo': tituloLimpio,
       'mensaje': mensajeLimpio,
-      'tipo': 'general',
+      'tipo': tipo,
       'activo': true,
       'fechaCreacion': FieldValue.serverTimestamp(),
       'creadoPorUid': creadoPorUid,
       'creadoPorNombre': creadoPorNombre,
     });
-  
+    await batch.commit();
+
     return documento.id;
   }
-  
+
   Future<void> cambiarEstadoMensaje({
     required String mensajeId,
     required bool activo,
+    required String tipo,
   }) async {
-    await _firestore.collection('mensajes').doc(mensajeId).update({
+    final referencia = _firestore.collection('mensajes').doc(mensajeId);
+    final batch = _firestore.batch();
+
+    if (activo) {
+      final tipoNormalizado = tipo == 'promocion' ? 'promocion' : 'informativo';
+      final publicaciones = await _firestore.collection('mensajes').get();
+      for (final publicacion in publicaciones.docs) {
+        final tipoExistente = publicacion.data()['tipo']?.toString();
+        final esPromocion = tipoExistente == 'promocion';
+        final mismaCategoria =
+            tipoNormalizado == 'promocion' ? esPromocion : !esPromocion;
+        if (publicacion.id != mensajeId &&
+            mismaCategoria &&
+            publicacion.data()['activo'] == true) {
+          batch.update(publicacion.reference, {'activo': false});
+        }
+      }
+    }
+
+    batch.update(referencia, {
       'activo': activo,
       'fechaActualizacion': FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   }
 
   Future<void> editarMensaje({
@@ -222,40 +259,32 @@ class AdminService {
     required String titulo,
     required String mensaje,
   }) async {
-    final String tituloLimpio =
-        titulo.trim();
-  
-    final String mensajeLimpio =
-        mensaje.trim();
-  
+    final String tituloLimpio = titulo.trim();
+
+    final String mensajeLimpio = mensaje.trim();
+
     if (tituloLimpio.isEmpty) {
       throw ArgumentError(
         'El título no puede estar vacío.',
       );
     }
-  
+
     if (mensajeLimpio.isEmpty) {
       throw ArgumentError(
         'El mensaje no puede estar vacío.',
       );
     }
-  
-    await _firestore
-        .collection('mensajes')
-        .doc(mensajeId)
-        .update({
+
+    await _firestore.collection('mensajes').doc(mensajeId).update({
       'titulo': tituloLimpio,
       'mensaje': mensajeLimpio,
-      'fechaActualizacion':
-          FieldValue.serverTimestamp(),
+      'fechaActualizacion': FieldValue.serverTimestamp(),
     });
   }
-  
+
   Future<void> eliminarMensaje({
     required String mensajeId,
   }) async {
     await _firestore.collection('mensajes').doc(mensajeId).delete();
   }
-
-  
 }

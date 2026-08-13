@@ -1,10 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../providers/user_provider.dart';
+import '../screens/cart_item.dart';
+import 'admin_reservations_page.dart';
+import '../services/admin_service.dart';
+import '../services/firestore_service.dart';
+import '../services/product_service.dart';
 import '../utils/colors.dart';
 
-class AdminUserDetailPage extends StatelessWidget {
+enum _PeriodoDetalle { recientes, hoy, mes, anio, todos }
+
+class AdminUserDetailPage extends StatefulWidget {
   final String uid;
   final String nombre;
   final String email;
@@ -12,6 +20,8 @@ class AdminUserDetailPage extends StatelessWidget {
   final String? avatarPath;
   final int muestrasDisponibles;
   final int muestrasUtilizadas;
+  final String telefono;
+  final DateTime? fechaRegistro;
 
   const AdminUserDetailPage({
     super.key,
@@ -22,7 +32,31 @@ class AdminUserDetailPage extends StatelessWidget {
     required this.avatarPath,
     required this.muestrasDisponibles,
     required this.muestrasUtilizadas,
+    this.telefono = '',
+    this.fechaRegistro,
   });
+
+  @override
+  State<AdminUserDetailPage> createState() => _AdminUserDetailPageState();
+}
+
+class _AdminUserDetailPageState extends State<AdminUserDetailPage> {
+  _PeriodoDetalle _periodo = _PeriodoDetalle.recientes;
+  bool _dispensandoCortesia = false;
+
+  String get uid => widget.uid;
+  String get nombre => widget.nombre;
+  String get email => widget.email;
+  String get rol => widget.rol;
+  String? get avatarPath => widget.avatarPath;
+  int get muestrasDisponibles => widget.muestrasDisponibles;
+  int get muestrasUtilizadas => widget.muestrasUtilizadas;
+
+  num _numero(dynamic valor, {num respaldo = 0}) {
+    if (valor is num) return valor;
+    if (valor is String) return num.tryParse(valor.trim()) ?? respaldo;
+    return respaldo;
+  }
 
   String _formatearFecha(DateTime fecha) {
     String dosDigitos(int valor) {
@@ -81,6 +115,101 @@ class AdminUserDetailPage extends StatelessWidget {
     return pedidos;
   }
 
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filtrarPeriodo(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> pedidos,
+  ) {
+    if (_periodo == _PeriodoDetalle.recientes) return pedidos.take(7).toList();
+    if (_periodo == _PeriodoDetalle.todos) return pedidos;
+    final ahora = DateTime.now();
+    return pedidos.where((doc) {
+      final raw = doc.data()['fechaCreacion'];
+      if (raw is! Timestamp) return false;
+      final fecha = raw.toDate();
+      if (_periodo == _PeriodoDetalle.hoy) {
+        return fecha.year == ahora.year &&
+            fecha.month == ahora.month &&
+            fecha.day == ahora.day;
+      }
+      if (_periodo == _PeriodoDetalle.mes) {
+        return fecha.year == ahora.year && fecha.month == ahora.month;
+      }
+      return fecha.year == ahora.year;
+    }).toList();
+  }
+
+  Future<void> _dispensarCortesia() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Dispensar muestra de cortesía'),
+        content: Text(
+          'Se enviará ahora una muestra gratuita para $nombre. '
+          'Esta cortesía no consume su saldo disponible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Dispensar ahora'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+
+    final admin = context.read<UserProvider>();
+    setState(() => _dispensandoCortesia = true);
+    try {
+      final productos = await ProductService().obtenerProductos();
+      final muestras = productos
+          .where((p) => p.esGratis && p.activo && !p.agotado && p.precio == 0)
+          .toList();
+      if (muestras.isEmpty) {
+        throw StateError('No hay una muestra gratuita activa y disponible.');
+      }
+      final pedidoId = await FirestoreService().crearPedido(
+        tipoUsuario: 'registrado',
+        usuarioId: uid,
+        sesionInvitadoId: null,
+        nombreUsuario: nombre,
+        email: email,
+        items: [CartItem(producto: muestras.first)],
+        metodoPago: 'admin',
+        estadoPago: 'no_requerido',
+      );
+      await AdminService().registrarAuditoria(
+        accion: 'cortesia_dispensada',
+        adminUid: admin.uid ?? '',
+        adminNombre: admin.user?.nombre ?? 'Administrador',
+        adminRol: admin.user?.rol ?? 'admin',
+        descripcion: 'Dispensó una muestra de cortesía a $nombre',
+        usuarioUid: uid,
+        usuarioNombre: nombre,
+        productoId: muestras.first.productoId,
+        productoNombre: muestras.first.nombre,
+        valorNuevo: pedidoId,
+        cantidad: 1,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La muestra de cortesía entró a la cola.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo dispensar la cortesía: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _dispensandoCortesia = false);
+    }
+  }
+
   Map<String, dynamic> _calcularEstadisticas(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> pedidos,
   ) {
@@ -95,6 +224,10 @@ class AdminUserDetailPage extends StatelessWidget {
     int mlMes = 0;
 
     double totalGastado = 0;
+    int entregados = 0;
+    int cancelados = 0;
+    final productos = <String, int>{};
+    final fechas = <DateTime>[];
 
     for (final doc in pedidos) {
       final data = doc.data();
@@ -103,6 +236,10 @@ class AdminUserDetailPage extends StatelessWidget {
           data['estadoPago']?.toString().toLowerCase() ?? '';
 
       final String estado = data['estado']?.toString().toLowerCase() ?? '';
+      final fechaRaw = data['fechaCreacion'];
+      if (fechaRaw is Timestamp) fechas.add(fechaRaw.toDate());
+      if (estado == 'entregado') entregados++;
+      if (estado == 'cancelado') cancelados++;
 
       if (estado == 'cancelado') {
         continue;
@@ -114,9 +251,7 @@ class AdminUserDetailPage extends StatelessWidget {
 
       comprasTotales++;
 
-      totalGastado += (data['total'] as num?)?.toDouble() ?? 0;
-
-      final dynamic fechaRaw = data['fechaCreacion'];
+      totalGastado += _numero(data['total']).toDouble();
 
       final DateTime? fecha = fechaRaw is Timestamp ? fechaRaw.toDate() : null;
 
@@ -139,11 +274,14 @@ class AdminUserDetailPage extends StatelessWidget {
           continue;
         }
 
-        final int cantidad = (itemRaw['cantidad'] as num?)?.toInt() ?? 1;
+        final int cantidad = _numero(itemRaw['cantidad'], respaldo: 1).toInt();
 
-        final int cantidadMl = (itemRaw['cantidadMl'] as num?)?.toInt() ?? 0;
+        final int cantidadMl = _numero(itemRaw['cantidadMl']).toInt();
 
         final bool esGratis = itemRaw['esGratis'] == true;
+
+        final producto = itemRaw['nombre']?.toString() ?? 'Producto';
+        productos[producto] = (productos[producto] ?? 0) + cantidad;
 
         if (esGratis) {
           continue;
@@ -159,6 +297,10 @@ class AdminUserDetailPage extends StatelessWidget {
       }
     }
 
+    fechas.sort();
+    final favorito = productos.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     return {
       'comprasTotales': comprasTotales,
       'bebidasTotales': bebidasTotales,
@@ -167,6 +309,13 @@ class AdminUserDetailPage extends StatelessWidget {
       'bebidasMes': bebidasMes,
       'mlMes': mlMes,
       'totalGastado': totalGastado,
+      'pedidos': pedidos.length,
+      'entregados': entregados,
+      'cancelados': cancelados,
+      'primerPedido': fechas.isEmpty ? null : fechas.first,
+      'ultimoPedido': fechas.isEmpty ? null : fechas.last,
+      'productoFavorito': favorito.isEmpty ? null : favorito.first.key,
+      'productoFavoritoCantidad': favorito.isEmpty ? 0 : favorito.first.value,
     };
   }
 
@@ -343,9 +492,9 @@ class AdminUserDetailPage extends StatelessWidget {
     final String metodoPago =
         data['metodoPago']?.toString() ?? 'No especificado';
 
-    final double total = (data['total'] as num?)?.toDouble() ?? 0;
+    final double total = _numero(data['total']).toDouble();
 
-    final int totalMl = (data['cantidadTotalMl'] as num?)?.toInt() ?? 0;
+    final int totalMl = _numero(data['cantidadTotalMl']).toInt();
 
     final dynamic fechaRaw = data['fechaCreacion'];
 
@@ -422,15 +571,14 @@ class AdminUserDetailPage extends StatelessWidget {
               final String producto =
                   itemRaw['nombre']?.toString() ?? 'Producto';
 
-              final int cantidad = (itemRaw['cantidad'] as num?)?.toInt() ?? 1;
+              final int cantidad =
+                  _numero(itemRaw['cantidad'], respaldo: 1).toInt();
 
-              final int cantidadMl =
-                  (itemRaw['cantidadMl'] as num?)?.toInt() ?? 0;
+              final int cantidadMl = _numero(itemRaw['cantidadMl']).toInt();
 
               final bool esGratis = itemRaw['esGratis'] == true;
 
-              final double subtotal =
-                  (itemRaw['subtotal'] as num?)?.toDouble() ?? 0;
+              final double subtotal = _numero(itemRaw['subtotal']).toDouble();
 
               return ListTile(
                 dense: true,
@@ -519,12 +667,13 @@ class AdminUserDetailPage extends StatelessWidget {
             );
           }
 
-          final pedidos = _filtrarPedidos(
+          final todosLosPedidos = _filtrarPedidos(
             snapshot.data!.docs,
           );
+          final pedidos = _filtrarPeriodo(todosLosPedidos);
 
           final estadisticas = _calcularEstadisticas(
-            pedidos,
+            todosLosPedidos,
           );
 
           final int comprasTotales = estadisticas['comprasTotales'] ?? 0;
@@ -540,6 +689,13 @@ class AdminUserDetailPage extends StatelessWidget {
           final int mlMes = estadisticas['mlMes'] ?? 0;
 
           final double totalGastado = estadisticas['totalGastado'] ?? 0.0;
+          final int entregados = estadisticas['entregados'] ?? 0;
+          final int cancelados = estadisticas['cancelados'] ?? 0;
+          final DateTime? primerPedido = estadisticas['primerPedido'];
+          final DateTime? ultimoPedido = estadisticas['ultimoPedido'];
+          final String? productoFavorito = estadisticas['productoFavorito'];
+          final int productoFavoritoCantidad =
+              estadisticas['productoFavoritoCantidad'] ?? 0;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -589,6 +745,15 @@ class AdminUserDetailPage extends StatelessWidget {
                             : 'CLIENTE',
                   ),
                 ),
+              ),
+
+              Text(
+                [
+                  if (widget.telefono.isNotEmpty) widget.telefono,
+                  'Registro: ${widget.fechaRegistro == null ? 'No disponible' : _formatearFecha(widget.fechaRegistro!).split(' • ').first}',
+                ].join(' • '),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
               ),
 
               const SizedBox(height: 16),
@@ -665,6 +830,115 @@ class AdminUserDetailPage extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              Card(
+                child: ExpansionTile(
+                  leading: const Icon(Icons.analytics_outlined),
+                  title: const Text('Resumen histórico'),
+                  subtitle: Text(
+                    '${todosLosPedidos.length} pedidos • $entregados entregados • '
+                    '$cancelados cancelados',
+                  ),
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  children: [
+                    ListTile(
+                      dense: true,
+                      title: const Text('Primer pedido'),
+                      trailing: Text(primerPedido == null
+                          ? 'Sin pedidos'
+                          : _formatearFecha(primerPedido).split(' • ').first),
+                    ),
+                    ListTile(
+                      dense: true,
+                      title: const Text('Último pedido'),
+                      trailing: Text(ultimoPedido == null
+                          ? 'Sin pedidos'
+                          : _formatearFecha(ultimoPedido).split(' • ').first),
+                    ),
+                    ListTile(
+                      dense: true,
+                      title: const Text('Producto favorito'),
+                      trailing: Text(productoFavorito == null
+                          ? 'Sin datos'
+                          : '$productoFavorito ($productoFavoritoCantidad)'),
+                    ),
+                  ],
+                ),
+              ),
+
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('reservas')
+                    .snapshots(),
+                builder: (context, reservaSnapshot) {
+                  if (reservaSnapshot.hasError) {
+                    return const Card(
+                      child: ListTile(
+                        leading: Icon(Icons.event_note),
+                        title: Text('Solicitudes comerciales / Reservas'),
+                        subtitle: Text('No se pudieron consultar.'),
+                      ),
+                    );
+                  }
+                  final correoNormalizado = email.trim().toLowerCase();
+                  final reservas = reservaSnapshot.data?.docs.where((doc) {
+                        final data = doc.data();
+                        final reservaUid = data['usuarioId']?.toString().trim();
+                        if (reservaUid != null && reservaUid.isNotEmpty) {
+                          return reservaUid == uid;
+                        }
+                        final correoReserva =
+                            data['email']?.toString().trim().toLowerCase() ??
+                                '';
+                        return correoNormalizado.isNotEmpty &&
+                            correoReserva == correoNormalizado;
+                      }).toList() ??
+                      const [];
+                  final cantidad = reservas.length;
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.event_note,
+                        color: AppColors.lilaOscuro,
+                      ),
+                      title: const Text('Solicitudes comerciales / Reservas'),
+                      subtitle: Text('$cantidad solicitud(es) asociada(s)'),
+                      trailing:
+                          cantidad > 0 ? const Icon(Icons.chevron_right) : null,
+                      onTap: cantidad == 0
+                          ? null
+                          : () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AdminReservationsPage(
+                                    usuarioId: uid,
+                                    nombreCliente: nombre,
+                                    emailCliente: email,
+                                  ),
+                                ),
+                              );
+                            },
+                    ),
+                  );
+                },
+              ),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _dispensandoCortesia ? null : _dispensarCortesia,
+                  icon: _dispensandoCortesia
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.local_drink),
+                  label: const Text('Dispensar muestra de cortesía ahora'),
                 ),
               ),
 
@@ -825,6 +1099,27 @@ class AdminUserDetailPage extends StatelessWidget {
 
               const SizedBox(height: 8),
 
+              Wrap(
+                spacing: 7,
+                runSpacing: 6,
+                children: _PeriodoDetalle.values.map((periodo) {
+                  final texto = switch (periodo) {
+                    _PeriodoDetalle.recientes => 'Últimos 7',
+                    _PeriodoDetalle.hoy => 'Hoy',
+                    _PeriodoDetalle.mes => 'Este mes',
+                    _PeriodoDetalle.anio => 'Este año',
+                    _PeriodoDetalle.todos => 'Todos',
+                  };
+                  return ChoiceChip(
+                    label: Text(texto),
+                    selected: _periodo == periodo,
+                    onSelected: (_) => setState(() => _periodo = periodo),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 8),
+
               if (pedidos.isEmpty)
                 const Card(
                   child: Padding(
@@ -833,8 +1128,7 @@ class AdminUserDetailPage extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        'Este usuario todavía '
-                        'no tiene compras registradas.',
+                        'No hay compras en el período seleccionado',
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -846,7 +1140,7 @@ class AdminUserDetailPage extends StatelessWidget {
                 (index) {
                   return _tarjetaPedido(
                     pedidos[index],
-                    pedidos.length - index,
+                    todosLosPedidos.length - index,
                   );
                 },
               ),

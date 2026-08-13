@@ -11,12 +11,14 @@ enum _FiltroReporte { hoy, mes, personalizado }
 
 class AdminReportsPage extends StatefulWidget {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> pedidos;
+  final List<Map<String, dynamic>> usuarios;
   final bool cargando;
   final Object? error;
 
   const AdminReportsPage({
     super.key,
     required this.pedidos,
+    required this.usuarios,
     required this.cargando,
     required this.error,
   });
@@ -197,8 +199,14 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           initialValue: _usuarioId,
           decoration: const InputDecoration(
             labelText: 'Cliente',
-            prefixIcon: Icon(Icons.person_search),
+            labelStyle: TextStyle(color: AppColors.lilaOscuro),
+            prefixIcon: Icon(Icons.person_search, color: AppColors.lilaOscuro),
+            filled: true,
+            fillColor: Color(0xfff7f3fa),
             border: OutlineInputBorder(),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: AppColors.lilaClaro),
+            ),
           ),
           items: [
             const DropdownMenuItem<String?>(
@@ -318,6 +326,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         ),
         const SizedBox(height: 14),
         _pedidosIncluidos(resumen),
+        const SizedBox(height: 20),
         const SizedBox(height: 24),
       ],
     );

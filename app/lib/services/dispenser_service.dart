@@ -48,7 +48,6 @@ class DispenserService {
           'fechaCreacion',
           descending: true,
         )
-        .limit(20)
         .snapshots()
         .asBroadcastStream();
   }
@@ -72,6 +71,34 @@ class DispenserService {
     });
   }
 
+  Future<void> reanudarPedido({required String pedidoId}) async {
+    final referencia = _firestore.collection('pedidos').doc(pedidoId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(referencia);
+      final data = snapshot.data();
+      final esPedidoFisico = data?['tipoUsuario'] == 'fisico' ||
+          data?['origenPedido'] == 'pulsador';
+      final esDispensacionAdministrativa = data?['metodoPago'] == 'admin' ||
+          data?['estadoPago'] == 'no_requerido';
+      if (!snapshot.exists ||
+          data?['estado'] != 'cancelado' ||
+          esPedidoFisico ||
+          esDispensacionAdministrativa) {
+        throw StateError('Solo se pueden reanudar pedidos cancelados.');
+      }
+      transaction.update(referencia, {
+        'estado': 'pendiente',
+        'procesado': false,
+        'fechaProcesado': null,
+        'fechaEntregado': null,
+        'fechaReanudado': FieldValue.serverTimestamp(),
+        'reanudadoPor': 'admin',
+        'fechaCancelado': FieldValue.delete(),
+        'canceladoPor': FieldValue.delete(),
+      });
+    });
+  }
+
   Future<void> bloquearUsuario({
     required String uid,
     required bool bloqueado,
@@ -81,16 +108,17 @@ class DispenserService {
       'fechaBloqueo': ServerValue.timestamp,
     });
   }
+
   Future<bool> usuarioEstaBloqueado({
     required String uid,
   }) async {
     final DataSnapshot snapshot =
         await _database.ref('usuarios/$uid/bloqueado').get();
-  
+
     if (!snapshot.exists) {
       return false;
     }
-  
+
     return snapshot.value == true;
   }
 }

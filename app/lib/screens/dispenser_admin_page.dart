@@ -7,6 +7,8 @@ import '../providers/user_provider.dart';
 import '../services/dispenser_service.dart';
 import '../utils/colors.dart';
 
+enum _PeriodoPedidosAdmin { recientes, hoy, mes, anio, todos }
+
 class DispenserAdminPage extends StatefulWidget {
   const DispenserAdminPage({super.key});
 
@@ -27,6 +29,7 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>>
       _pedidosRecientesStream;
+  _PeriodoPedidosAdmin _periodoPedidos = _PeriodoPedidosAdmin.recientes;
 
   @override
   void initState() {
@@ -408,6 +411,43 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
             'No se pudo cancelar: $e',
           ),
           backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _reanudarPedido(String pedidoId) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reanudar pedido'),
+        content: const Text(
+          'El mismo pedido volverá a estado pendiente y podrá ser recogido por la máquina. No se realizará un nuevo cobro.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Reanudar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    try {
+      await _service.reanudarPedido(pedidoId: pedidoId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pedido reanudado correctamente.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El pedido ya no es elegible para reanudarse.'),
         ),
       );
     }
@@ -1122,16 +1162,34 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
           );
         }
 
-        final docs = snapshot.data!.docs
-            .where(
-              (doc) {
-                final String estado = doc.data()['estado']?.toString() ?? '';
-
-                return estado == 'entregado' || estado == 'cancelado';
-              },
-            )
-            .take(8)
-            .toList();
+        final ahora = DateTime.now();
+        final filtrados = snapshot.data!.docs.where(
+          (doc) {
+            final String estado = doc.data()['estado']?.toString() ?? '';
+            if (estado != 'entregado' && estado != 'cancelado') {
+              return false;
+            }
+            if (_periodoPedidos == _PeriodoPedidosAdmin.recientes ||
+                _periodoPedidos == _PeriodoPedidosAdmin.todos) {
+              return true;
+            }
+            final raw = doc.data()['fechaCreacion'];
+            if (raw is! Timestamp) return false;
+            final fecha = raw.toDate();
+            if (_periodoPedidos == _PeriodoPedidosAdmin.hoy) {
+              return fecha.year == ahora.year &&
+                  fecha.month == ahora.month &&
+                  fecha.day == ahora.day;
+            }
+            if (_periodoPedidos == _PeriodoPedidosAdmin.mes) {
+              return fecha.year == ahora.year && fecha.month == ahora.month;
+            }
+            return fecha.year == ahora.year;
+          },
+        ).toList();
+        final docs = _periodoPedidos == _PeriodoPedidosAdmin.recientes
+            ? filtrados.take(7).toList()
+            : filtrados;
 
         if (docs.isEmpty) {
           return const SizedBox.shrink();
@@ -1146,6 +1204,25 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                 fontSize: 21,
                 fontWeight: FontWeight.bold,
               ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 7,
+              runSpacing: 6,
+              children: _PeriodoPedidosAdmin.values.map((periodo) {
+                final texto = switch (periodo) {
+                  _PeriodoPedidosAdmin.recientes => 'Últimos 7',
+                  _PeriodoPedidosAdmin.hoy => 'Hoy',
+                  _PeriodoPedidosAdmin.mes => 'Este mes',
+                  _PeriodoPedidosAdmin.anio => 'Este año',
+                  _PeriodoPedidosAdmin.todos => 'Todos',
+                };
+                return ChoiceChip(
+                  label: Text(texto),
+                  selected: _periodoPedidos == periodo,
+                  onSelected: (_) => setState(() => _periodoPedidos = periodo),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 10),
             ...docs.map(
@@ -1267,6 +1344,21 @@ class _DispenserAdminPageState extends State<DispenserAdminPage> {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ],
+                      if (estado == 'cancelado' &&
+                          data['tipoUsuario'] != 'fisico' &&
+                          data['origenPedido'] != 'pulsador' &&
+                          data['metodoPago'] != 'admin' &&
+                          data['estadoPago'] != 'no_requerido') ...[
+                        const Divider(height: 1),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () => _reanudarPedido(doc.id),
+                            icon: const Icon(Icons.replay),
+                            label: const Text('Reanudar pedido'),
                           ),
                         ),
                       ],
