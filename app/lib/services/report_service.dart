@@ -9,10 +9,12 @@ enum SalesReportPeriodType { day, month, custom, year }
 class SalesProductStat {
   final String nombre;
   final int cantidad;
+  final int mililitros;
 
   const SalesProductStat({
     required this.nombre,
     required this.cantidad,
+    required this.mililitros,
   });
 }
 
@@ -44,6 +46,10 @@ class ReportOrder {
   final int cantidadTotalMl;
   final String nombreUsuario;
   final String email;
+  final String tipoUsuario;
+  final String usuarioId;
+  final String origenPedido;
+  final String dispensadorId;
   final List<ReportOrderItem> items;
 
   const ReportOrder({
@@ -56,6 +62,10 @@ class ReportOrder {
     required this.cantidadTotalMl,
     required this.nombreUsuario,
     required this.email,
+    required this.tipoUsuario,
+    required this.usuarioId,
+    required this.origenPedido,
+    required this.dispensadorId,
     required this.items,
   });
 
@@ -66,6 +76,10 @@ class ReportOrder {
 
   bool get esDispensacionAdministrativa =>
       metodoPago == 'admin' || estadoPago == 'no_requerido';
+
+  bool get esFisico => tipoUsuario == 'fisico' || origenPedido == 'pulsador';
+
+  bool get esApp => !esFisico;
 
   String get detalleProductos {
     if (items.isEmpty) return 'Sin detalle';
@@ -81,9 +95,14 @@ class SalesReportSummary {
   final DateTime fechaFinal;
   final List<ReportOrder> pedidos;
   final int pedidosEntregados;
+  final int pedidosCancelados;
   final int ventasValidas;
   final double totalVendido;
   final int dispensadoMl;
+  final int ventasApp;
+  final int ventasFisicas;
+  final double totalApp;
+  final double totalFisico;
   final String productoMasVendido;
   final int cantidadProductoMasVendido;
   final List<SalesProductStat> productosMasVendidos;
@@ -94,9 +113,14 @@ class SalesReportSummary {
     required this.fechaFinal,
     required this.pedidos,
     required this.pedidosEntregados,
+    required this.pedidosCancelados,
     required this.ventasValidas,
     required this.totalVendido,
     required this.dispensadoMl,
+    required this.ventasApp,
+    required this.ventasFisicas,
+    required this.totalApp,
+    required this.totalFisico,
     required this.productoMasVendido,
     required this.cantidadProductoMasVendido,
     required this.productosMasVendidos,
@@ -147,6 +171,7 @@ class ReportService {
     required Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> documentos,
     required DateTime fechaInicial,
     required DateTime fechaFinal,
+    String? usuarioId,
   }) {
     final inicio = DateTime(
       fechaInicial.year,
@@ -159,8 +184,15 @@ class ReportService {
       fechaFinal.day + 1,
     );
 
+    final documentosFiltrados = usuarioId == null
+        ? documentos
+        : documentos.where(
+            (documento) =>
+                documento.data()['usuarioId']?.toString() == usuarioId,
+          );
+
     return crearResumenEntre(
-      documentos: documentos,
+      documentos: documentosFiltrados,
       inicio: inicio,
       finExclusivo: finExclusivo,
     );
@@ -172,31 +204,47 @@ class ReportService {
     DateTime fechaFinal,
   ) {
     var pedidosEntregados = 0;
+    var pedidosCancelados = 0;
     var ventasValidas = 0;
     var totalVendido = 0.0;
     var dispensadoMl = 0;
+    var ventasApp = 0;
+    var ventasFisicas = 0;
+    var totalApp = 0.0;
+    var totalFisico = 0.0;
     final productosVendidos = <String, int>{};
+    final mililitrosPorProducto = <String, int>{};
     final metodosPago = <String, int>{};
 
     for (final pedido in pedidos) {
       if (pedido.estado == 'entregado') {
         pedidosEntregados++;
         dispensadoMl += pedido.cantidadTotalMl;
+        for (final item in pedido.items) {
+          productosVendidos[item.nombre] =
+              (productosVendidos[item.nombre] ?? 0) + item.cantidad;
+          mililitrosPorProducto[item.nombre] =
+              (mililitrosPorProducto[item.nombre] ?? 0) +
+                  (item.cantidadMl * item.cantidad);
+        }
       }
+
+      if (pedido.estado == 'cancelado') pedidosCancelados++;
 
       if (!pedido.esVentaValida) continue;
 
       ventasValidas++;
       totalVendido += pedido.total;
+      if (pedido.esFisico) {
+        ventasFisicas++;
+        totalFisico += pedido.total;
+      } else {
+        ventasApp++;
+        totalApp += pedido.total;
+      }
       final metodo =
           pedido.metodoPago.isEmpty ? 'no especificado' : pedido.metodoPago;
       metodosPago[metodo] = (metodosPago[metodo] ?? 0) + 1;
-
-      for (final item in pedido.items) {
-        if (item.esGratis) continue;
-        productosVendidos[item.nombre] =
-            (productosVendidos[item.nombre] ?? 0) + item.cantidad;
-      }
     }
 
     var productoMasVendido = 'Sin datos';
@@ -212,6 +260,7 @@ class ReportService {
           (entry) => SalesProductStat(
             nombre: entry.key,
             cantidad: entry.value,
+            mililitros: mililitrosPorProducto[entry.key] ?? 0,
           ),
         )
         .toList(growable: false);
@@ -226,9 +275,14 @@ class ReportService {
       fechaFinal: fechaFinal,
       pedidos: pedidos,
       pedidosEntregados: pedidosEntregados,
+      pedidosCancelados: pedidosCancelados,
       ventasValidas: ventasValidas,
       totalVendido: totalVendido,
       dispensadoMl: dispensadoMl,
+      ventasApp: ventasApp,
+      ventasFisicas: ventasFisicas,
+      totalApp: totalApp,
+      totalFisico: totalFisico,
       productoMasVendido: productoMasVendido,
       cantidadProductoMasVendido: cantidadProductoMasVendido,
       productosMasVendidos: productosMasVendidos,
@@ -323,6 +377,7 @@ class ReportService {
             children: [
               _tarjetaPdf('Pedidos del período', '${resumen.pedidos.length}'),
               _tarjetaPdf('Pedidos entregados', '${resumen.pedidosEntregados}'),
+              _tarjetaPdf('Pedidos cancelados', '${resumen.pedidosCancelados}'),
               _tarjetaPdf('Ventas válidas', '${resumen.ventasValidas}'),
               _tarjetaPdf(
                 'Total vendido',
@@ -330,6 +385,16 @@ class ReportService {
               ),
               _tarjetaPdf(
                   'Dispensado real', _formatearMl(resumen.dispensadoMl)),
+              _tarjetaPdf('Ventas App', '${resumen.ventasApp}'),
+              _tarjetaPdf('Ventas físicas', '${resumen.ventasFisicas}'),
+              _tarjetaPdf(
+                'Total App',
+                '${dinero.format(resumen.totalApp)} Bs',
+              ),
+              _tarjetaPdf(
+                'Total físico',
+                '${dinero.format(resumen.totalFisico)} Bs',
+              ),
               _tarjetaPdf(
                 'Producto más vendido',
                 resumen.cantidadProductoMasVendido == 0
@@ -338,6 +403,23 @@ class ReportService {
                         '(${resumen.cantidadProductoMasVendido})',
               ),
             ],
+          ),
+          pw.SizedBox(height: 18),
+          pw.Text(
+            'Totales por origen',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Text(
+            'Aplicación: ${resumen.ventasApp} ventas · '
+            '${dinero.format(resumen.totalApp)} Bs',
+          ),
+          pw.Text(
+            'Pulsador físico: ${resumen.ventasFisicas} ventas · '
+            '${dinero.format(resumen.totalFisico)} Bs',
           ),
           pw.SizedBox(height: 18),
           pw.Text(
@@ -362,7 +444,7 @@ class ReportService {
                 ),
           pw.SizedBox(height: 18),
           pw.Text(
-            'Movimientos del período',
+            'Movimientos por origen',
             style: pw.TextStyle(
               fontSize: 14,
               fontWeight: pw.FontWeight.bold,
@@ -376,6 +458,7 @@ class ReportService {
               headers: const [
                 'Fecha',
                 'Cliente',
+                'Origen',
                 'Detalle',
                 'Método',
                 'Estado',
@@ -386,6 +469,7 @@ class ReportService {
                     (pedido) => [
                       fecha.format(pedido.fechaCreacion),
                       pedido.nombreUsuario,
+                      pedido.esFisico ? 'Pulsador' : 'App',
                       pedido.detalleProductos,
                       _capitalizar(pedido.metodoPago),
                       _capitalizar(pedido.estado),
@@ -406,10 +490,11 @@ class ReportService {
               columnWidths: {
                 0: const pw.FlexColumnWidth(1.15),
                 1: const pw.FlexColumnWidth(1.15),
-                2: const pw.FlexColumnWidth(2.1),
-                3: const pw.FlexColumnWidth(0.9),
+                2: const pw.FlexColumnWidth(0.75),
+                3: const pw.FlexColumnWidth(1.8),
                 4: const pw.FlexColumnWidth(0.9),
                 5: const pw.FlexColumnWidth(0.9),
+                6: const pw.FlexColumnWidth(0.9),
               },
               border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
               oddRowDecoration: const pw.BoxDecoration(
@@ -467,6 +552,10 @@ class ReportService {
       cantidadTotalMl: _entero(data['cantidadTotalMl']),
       nombreUsuario: _texto(data['nombreUsuario'], respaldo: 'Invitado'),
       email: _texto(data['email']),
+      tipoUsuario: _texto(data['tipoUsuario']).toLowerCase(),
+      usuarioId: _texto(data['usuarioId']),
+      origenPedido: _texto(data['origenPedido']).toLowerCase(),
+      dispensadorId: _texto(data['dispensadorId'], respaldo: 'principal'),
       items: items,
     );
   }
@@ -627,7 +716,8 @@ class ReportService {
       else
         ...resumen.productosMasVendidos.map(
           (producto) => _barraPdf(
-            etiqueta: producto.nombre,
+            etiqueta: '${producto.nombre} '
+                '(${_formatearMl(producto.mililitros)})',
             valor: producto.cantidad,
             maximo: resumen.productosMasVendidos.first.cantidad,
             color: const PdfColor.fromInt(0xff5b2c83),

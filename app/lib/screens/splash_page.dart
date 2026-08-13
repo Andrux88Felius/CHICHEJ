@@ -1,12 +1,17 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../services/music_service.dart';
+import '../services/auth_session_service.dart';
+import '../providers/order_provider.dart';
+import '../providers/user_provider.dart';
 import '../utils/colors.dart';
 import 'login_page.dart';
+import 'main_navigation.dart';
 
 class SplashPage extends StatefulWidget {
   final Future<void> Function() onInitialize;
@@ -135,9 +140,37 @@ class _SplashPageState extends State<SplashPage> {
       if (_navigated) return;
       _navigated = true;
 
+      Widget destination = const LoginPage();
+      final keepSession = await AuthSessionService.keepSessionEnabled();
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+
+      if (keepSession && firebaseUser != null) {
+        try {
+          final result = await AuthSessionService.loadCurrentUser();
+          if (result.user != null && !result.blocked) {
+            if (!mounted) return;
+            context.read<OrderProvider>().limpiarSesion();
+            context.read<UserProvider>().setUser(result.user!);
+            await musicService.activateUser(firebaseUser.uid);
+            destination = const MainNavigation();
+          } else {
+            await AuthSessionService.setKeepSession(false);
+            await FirebaseAuth.instance.signOut();
+          }
+        } catch (error) {
+          debugPrint('[AUTH] No se pudo restaurar la sesión: $error');
+          await AuthSessionService.setKeepSession(false);
+          await FirebaseAuth.instance.signOut();
+        }
+      } else if (firebaseUser != null) {
+        await FirebaseAuth.instance.signOut();
+      }
+
+      if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
+        MaterialPageRoute(builder: (_) => destination),
       );
     } catch (error, stackTrace) {
       debugPrint('CHICHEJ initialization error: $error');

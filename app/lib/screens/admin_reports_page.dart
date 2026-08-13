@@ -31,6 +31,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   late DateTime _fechaInicial;
   late DateTime _fechaFinal;
   bool _incluirGraficas = false;
+  String? _usuarioId;
 
   @override
   void initState() {
@@ -133,7 +134,23 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
       documentos: widget.pedidos,
       fechaInicial: _fechaInicial,
       fechaFinal: _fechaFinal,
+      usuarioId: _usuarioId,
     );
+
+    final usuarios = <String, String>{};
+    for (final documento in widget.pedidos) {
+      final data = documento.data();
+      final uid = data['usuarioId']?.toString().trim() ?? '';
+      final esFisico =
+          data['tipoUsuario']?.toString().toLowerCase() == 'fisico' ||
+              data['origenPedido']?.toString().toLowerCase() == 'pulsador';
+      if (uid.isNotEmpty && !esFisico) {
+        usuarios[uid] =
+            data['nombreUsuario']?.toString().trim().isNotEmpty == true
+                ? data['nombreUsuario'].toString()
+                : data['email']?.toString() ?? 'Usuario';
+      }
+    }
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -175,6 +192,28 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           _textoPeriodo(),
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String?>(
+          initialValue: _usuarioId,
+          decoration: const InputDecoration(
+            labelText: 'Cliente',
+            prefixIcon: Icon(Icons.person_search),
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Todos (incluye ventas físicas)'),
+            ),
+            ...usuarios.entries.map(
+              (entry) => DropdownMenuItem<String?>(
+                value: entry.key,
+                child: Text(entry.value, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+          onChanged: (valor) => setState(() => _usuarioId = valor),
+        ),
         const SizedBox(height: 16),
         GridView.count(
           crossAxisCount: 2,
@@ -188,6 +227,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 'Pedidos', '${resumen.pedidos.length}', Icons.receipt_long),
             _tarjeta('Entregados', '${resumen.pedidosEntregados}',
                 Icons.check_circle),
+            _tarjeta(
+                'Cancelados', '${resumen.pedidosCancelados}', Icons.cancel),
             _tarjeta('Ventas válidas', '${resumen.ventasValidas}',
                 Icons.point_of_sale),
             _tarjeta(
@@ -200,6 +241,11 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               ReportService.formatearMl(resumen.dispensadoMl),
               Icons.local_drink,
             ),
+            _tarjeta('Ventas App', '${resumen.ventasApp}', Icons.phone_android,
+                detalle: '${resumen.totalApp.toStringAsFixed(2)} Bs'),
+            _tarjeta(
+                'Ventas físicas', '${resumen.ventasFisicas}', Icons.touch_app,
+                detalle: '${resumen.totalFisico.toStringAsFixed(2)} Bs'),
             _tarjeta(
               'Más vendido',
               resumen.cantidadProductoMasVendido == 0
@@ -390,9 +436,10 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 30,
+            width: 82,
             child: Text(
-              '${producto.cantidad}',
+              '${producto.cantidad} · '
+              '${ReportService.formatearMl(producto.mililitros)}',
               textAlign: TextAlign.right,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
@@ -403,11 +450,10 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   }
 
   Widget _pedidosIncluidos(SalesReportSummary resumen) {
-    final comerciales = resumen.pedidos
-        .where((pedido) => !pedido.esDispensacionAdministrativa)
-        .toList();
+    final app = resumen.pedidos.where((pedido) => pedido.esApp).toList();
+    final fisicos = resumen.pedidos.where((pedido) => pedido.esFisico).toList();
     final administrativos = resumen.pedidos
-        .where((pedido) => pedido.esDispensacionAdministrativa)
+        .where((pedido) => pedido.esDispensacionAdministrativa && pedido.esApp)
         .toList();
 
     return Card(
@@ -424,8 +470,15 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         children: [
           _grupoPedidos(
-            titulo: 'Pedidos comerciales',
-            pedidos: comerciales,
+            titulo: 'Ventas desde aplicación',
+            pedidos: app
+                .where((pedido) => !pedido.esDispensacionAdministrativa)
+                .toList(),
+          ),
+          const SizedBox(height: 12),
+          _grupoPedidos(
+            titulo: 'Ventas físicas por pulsador',
+            pedidos: fisicos,
           ),
           const SizedBox(height: 12),
           _grupoPedidos(

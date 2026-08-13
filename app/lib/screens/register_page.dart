@@ -8,6 +8,7 @@ import '../models/user_model.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/music_service.dart';
+import '../services/auth_session_service.dart';
 import '../utils/colors.dart';
 import 'main_navigation.dart';
 
@@ -26,6 +27,13 @@ class _RegisterPageState extends State<RegisterPage> {
   bool isLoading = false;
   bool isPasswordVisible = false;
 
+  bool _contrasenaSegura(String value) =>
+      value.length >= 8 &&
+      RegExp(r'[A-Z]').hasMatch(value) &&
+      RegExp(r'[a-z]').hasMatch(value) &&
+      RegExp(r'[0-9]').hasMatch(value) &&
+      RegExp(r'[^A-Za-z0-9]').hasMatch(value);
+
   Future<void> register() async {
     if (isLoading) return;
 
@@ -42,11 +50,11 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    if (password.length < 6) {
+    if (!_contrasenaSegura(password)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'La contraseña debe tener al menos 6 caracteres',
+            'La contraseña no cumple todos los requisitos de seguridad.',
           ),
         ),
       );
@@ -118,6 +126,7 @@ class _RegisterPageState extends State<RegisterPage> {
       orderProvider.limpiarSesion();
       userProvider.setUser(usuario);
       await musicService.activateUser(uid);
+      await AuthSessionService.setKeepSession(false);
 
       if (!mounted) return;
 
@@ -321,6 +330,15 @@ class _RegisterPageState extends State<RegisterPage> {
                                 );
                               },
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'La contraseña debe incluir 8 caracteres, mayúscula, '
+                      'minúscula, número y símbolo.',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
                     ),
                   ),
                   const SizedBox(height: 30),

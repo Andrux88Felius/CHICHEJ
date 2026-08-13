@@ -8,6 +8,7 @@ import '../models/user_model.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/music_service.dart';
+import '../services/auth_session_service.dart';
 import '../utils/colors.dart';
 import 'main_navigation.dart';
 import 'register_page.dart';
@@ -25,6 +26,65 @@ class _LoginPageState extends State<LoginPage> {
 
   bool isLoading = false;
   bool isPasswordVisible = false;
+  bool mantenerSesion = false;
+
+  bool _correoValido(String email) =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+  void _mostrarMensaje(String mensaje, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: error ? Colors.redAccent : Colors.green,
+      ),
+    );
+  }
+
+  String _mensajeAuth(String codigo, {bool recuperacion = false}) {
+    switch (codigo) {
+      case 'wrong-password':
+        return 'La contraseña es incorrecta.';
+      case 'user-not-found':
+        return recuperacion
+            ? 'No existe una cuenta con este correo.'
+            : 'No existe una cuenta con este correo. Puedes registrarte.';
+      case 'invalid-credential':
+        return 'El correo o la contraseña son incorrectos.';
+      case 'invalid-email':
+        return 'Ingresa un correo electrónico válido.';
+      case 'user-disabled':
+        return 'Esta cuenta está deshabilitada. Contacta al administrador.';
+      case 'too-many-requests':
+        return 'Demasiados intentos. Intenta nuevamente más tarde.';
+      case 'network-request-failed':
+        return 'No se pudo conectar. Verifica tu conexión a Internet.';
+      default:
+        return recuperacion
+            ? 'No se pudo enviar el enlace. Intenta nuevamente.'
+            : 'No se pudo iniciar sesión. Intenta nuevamente.';
+    }
+  }
+
+  Future<void> _restablecerContrasena() async {
+    final email = emailController.text.trim();
+    if (!_correoValido(email)) {
+      _mostrarMensaje('Ingresa un correo electrónico válido.', error: true);
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      _mostrarMensaje('Te enviamos un enlace para restablecer tu contraseña.');
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      _mostrarMensaje(_mensajeAuth(error.code, recuperacion: true),
+          error: true);
+    } catch (_) {
+      if (!mounted) return;
+      _mostrarMensaje('No se pudo enviar el enlace. Intenta nuevamente.',
+          error: true);
+    }
+  }
 
   Future<void> login({bool isGuest = false}) async {
     if (isLoading) return;
@@ -67,6 +127,7 @@ class _LoginPageState extends State<LoginPage> {
       String avatarUsuario = 'assets/avatares/invitado.png';
       int muestrasGratisDisponibles = 0;
       int muestrasGratisUtilizadas = 0;
+      bool bloqueado = false;
 
       try {
         final FirebaseDatabase database = FirebaseDatabase.instanceFor(
@@ -91,6 +152,7 @@ class _LoginPageState extends State<LoginPage> {
 
           muestrasGratisUtilizadas =
               (data['muestrasGratisUtilizadas'] as num?)?.toInt() ?? 0;
+          bloqueado = data['bloqueado'] == true;
         }
       } catch (dbError) {
         debugPrint(
@@ -100,6 +162,17 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       if (!mounted) return;
+
+      if (bloqueado) {
+        await FirebaseAuth.instance.signOut();
+        await AuthSessionService.setKeepSession(false);
+        if (!mounted) return;
+        _mostrarMensaje(
+          'Esta cuenta está bloqueada. Contacta al administrador.',
+          error: true,
+        );
+        return;
+      }
 
       final bool esAdmin =
           rolUsuario == 'admin' || rolUsuario == 'admin_principal';
@@ -131,6 +204,7 @@ class _LoginPageState extends State<LoginPage> {
       // UserProvider vuelve a imponer el avatar oficial si es administrador.
       userProvider.setUser(usuario);
       await musicService.activateUser(uid);
+      await AuthSessionService.setKeepSession(mantenerSesion);
 
       debugPrint('-------------------------');
       debugPrint('UID: ${usuario.uid}');
@@ -159,42 +233,7 @@ class _LoginPageState extends State<LoginPage> {
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
-      String errorMessage = 'Error al iniciar sesión.';
-
-      switch (e.code) {
-        case 'user-not-found':
-        case 'invalid-credential':
-          errorMessage = 'Usuario no encontrado o credenciales inválidas.';
-          break;
-
-        case 'wrong-password':
-          errorMessage = 'Contraseña incorrecta.';
-          break;
-
-        case 'invalid-email':
-          errorMessage = 'El formato del correo no es válido.';
-          break;
-
-        case 'user-disabled':
-          errorMessage = 'Esta cuenta fue deshabilitada.';
-          break;
-
-        case 'too-many-requests':
-          errorMessage =
-              'Demasiados intentos. Espera unos minutos e inténtalo nuevamente.';
-          break;
-
-        case 'network-request-failed':
-          errorMessage = 'No se pudo conectar. Revisa tu conexión a Internet.';
-          break;
-
-        case 'uid-no-disponible':
-          errorMessage = 'No se pudo identificar correctamente al usuario.';
-          break;
-
-        default:
-          errorMessage = e.message ?? 'No se pudo iniciar sesión.';
-      }
+      final errorMessage = _mensajeAuth(e.code);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -241,6 +280,7 @@ class _LoginPageState extends State<LoginPage> {
       // Cierra cualquier sesión de Firebase activa y crea/reutiliza
       // el identificador local persistente del invitado.
       await userProvider.iniciarSesionInvitada();
+      await AuthSessionService.setKeepSession(false);
       await musicService.startGuestSession();
 
       if (!mounted) return;
@@ -362,6 +402,32 @@ class _LoginPageState extends State<LoginPage> {
                                   () => isPasswordVisible = !isPasswordVisible,
                                 );
                               },
+                      ),
+                    ),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: AppColors.dorado,
+                    checkColor: Colors.black,
+                    title: const Text(
+                      'Mantener sesión iniciada',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    value: mantenerSesion,
+                    onChanged: isLoading
+                        ? null
+                        : (value) {
+                            setState(() => mantenerSesion = value ?? false);
+                          },
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: isLoading ? null : _restablecerContrasena,
+                      child: const Text(
+                        '¿Olvidaste tu contraseña?',
+                        style: TextStyle(color: Colors.white),
                       ),
                     ),
                   ),

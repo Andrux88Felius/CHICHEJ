@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/music_service.dart';
+import '../services/auth_session_service.dart';
 import '../utils/colors.dart';
 import 'chichej_info_page.dart';
 import 'event_order_page.dart' as event_page;
@@ -18,6 +20,54 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final TextEditingController nombreController = TextEditingController();
+  bool _mantenerSesion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthSessionService.keepSessionEnabled().then((value) {
+      if (mounted) setState(() => _mantenerSesion = value);
+    });
+  }
+
+  Future<void> _desactivarAccesoAutomatico() async {
+    await AuthSessionService.setKeepSession(false);
+    if (!mounted) return;
+    setState(() => _mantenerSesion = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Acceso automático desactivado. En el próximo inicio deberás iniciar sesión.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _enviarCambioContrasena() async {
+    final email = FirebaseAuth.instance.currentUser?.email;
+    if (email == null || email.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('No hay un correo disponible para esta cuenta.')),
+      );
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text('Enviamos un enlace de cambio de contraseña a $email.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('No se pudo enviar el enlace. Intenta nuevamente.')),
+      );
+    }
+  }
 
   final List<String> avatares = const [
     'assets/avatares/avatar1.png',
@@ -162,6 +212,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     orderProvider.limpiarSesion();
     await musicService.clearSession();
+    await AuthSessionService.setKeepSession(false);
     await userProvider.logout();
 
     if (!context.mounted) return;
@@ -441,6 +492,40 @@ class _ProfilePageState extends State<ProfilePage> {
                 const promo_page.MonthlyPromoPage(),
               ),
             ),
+            if (!esInvitado) ...[
+              const Divider(),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Seguridad y acceso',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.login, color: AppColors.lilaOscuro),
+                title: Text(
+                  'Acceso automático: ${_mantenerSesion ? 'Activado' : 'Desactivado'}',
+                ),
+                subtitle: _mantenerSesion
+                    ? const Text(
+                        'Entrarás después del splash sin volver a iniciar sesión.')
+                    : const Text(
+                        'Se solicitará iniciar sesión al abrir nuevamente la app.'),
+              ),
+              if (_mantenerSesion)
+                OutlinedButton.icon(
+                  onPressed: _desactivarAccesoAutomatico,
+                  icon: const Icon(Icons.no_accounts),
+                  label: const Text('Desactivar acceso automático'),
+                ),
+              ListTile(
+                leading:
+                    const Icon(Icons.password, color: AppColors.lilaOscuro),
+                title: const Text('Cambiar contraseña'),
+                subtitle: const Text('Recibe un enlace seguro en tu correo.'),
+                onTap: _enviarCambioContrasena,
+              ),
+            ],
             const Divider(),
             const SizedBox(height: 12),
             SizedBox(
